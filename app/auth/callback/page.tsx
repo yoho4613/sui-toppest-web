@@ -26,9 +26,9 @@ export default function AuthCallbackPage() {
 
         if (success) {
           setStatus('success');
-          // Redirect to home after short delay
+          // Redirect to play page after short delay
           setTimeout(() => {
-            router.push('/');
+            router.push('/play');
           }, 1500);
         } else {
           setStatus('error');
@@ -76,7 +76,7 @@ export default function AuthCallbackPage() {
             <h2 className="text-2xl font-semibold text-green-400 mb-2">
               Login Successful!
             </h2>
-            <p className="text-gray-400">Redirecting to app...</p>
+            <p className="text-gray-400">Redirecting to game...</p>
           </>
         )}
 
@@ -102,10 +102,10 @@ export default function AuthCallbackPage() {
             </h2>
             <p className="text-gray-400 mb-6">{error}</p>
             <button
-              onClick={() => router.push('/')}
+              onClick={() => router.push('/play')}
               className="btn btn-primary"
             >
-              Back to Home
+              Try Again
             </button>
           </>
         )}

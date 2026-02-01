@@ -104,6 +104,17 @@ export async function POST(request: NextRequest) {
       if (google_picture !== undefined)
         updateData.google_picture = google_picture;
 
+      // If no fields to update, just return existing profile
+      if (Object.keys(updateData).length === 0) {
+        const { data } = await supabaseAdmin
+          .from('user_profiles')
+          .select('*')
+          .eq('wallet_address', wallet_address)
+          .single();
+
+        return NextResponse.json({ profile: data, unchanged: true });
+      }
+
       const { data, error } = await supabaseAdmin
         .from('user_profiles')
         .update(updateData)

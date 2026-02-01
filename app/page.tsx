@@ -1,252 +1,189 @@
 'use client';
 
-import { ConnectButton } from '@mysten/dapp-kit';
-import { useSuiWallet } from '@/hooks/useSuiWallet';
-import { useZkLogin } from '@/hooks/useZkLogin';
-import { useProfile } from '@/hooks/useProfile';
-import { shortenAddress, formatSui, getExplorerAddressUrl } from '@/lib/sui-utils';
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useSuiClient } from '@mysten/dapp-kit';
+import { useRouter } from 'next/navigation';
 
-export default function Home() {
-  const client = useSuiClient();
-  const { isConnected: isWalletConnected, address: walletAddress, getBalance, getTokenBalance, disconnect: disconnectWallet } = useSuiWallet();
-  const { isAuthenticated: isZkLoginAuth, address: zkAddress, login: zkLogin, logout: zkLogout, isLoading: zkLoading, userInfo } = useZkLogin();
+export default function LandingPage() {
+  const router = useRouter();
 
-  const [suiBalance, setSuiBalance] = useState<string>('0');
-  const [luckBalance, setLuckBalance] = useState<string>('0');
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Combined connection state
-  const isConnected = isWalletConnected || isZkLoginAuth;
-  const address = walletAddress || zkAddress;
-  const authMethod = isWalletConnected ? 'wallet' : isZkLoginAuth ? 'zklogin' : null;
-
-  // Auto-register user to DB on connection
-  const { profile, createOrSyncProfile } = useProfile({
-    walletAddress: address,
-    authMethod,
-    googleInfo: userInfo
-      ? {
-          email: userInfo.email,
-          name: userInfo.name,
-          picture: userInfo.picture,
-          sub: userInfo.sub,
-        }
-      : undefined,
-  });
-
-  // Auto-register on first connection
-  useEffect(() => {
-    if (isConnected && authMethod && !profile) {
-      // For zkLogin, wait for userInfo
-      if (authMethod === 'zklogin' && !userInfo) return;
-      createOrSyncProfile();
-    }
-  }, [isConnected, authMethod, userInfo, profile, createOrSyncProfile]);
-
-  // Deployed contract info (devnet)
-  const PACKAGE_ID = '0x5cbe88ff66b4772358bcda0e509b955d3c51d05f956343253f8d780a5361c661';
-  const LUCK_COIN_TYPE = `${PACKAGE_ID}::luck_token::LUCK_TOKEN`;
-
-  useEffect(() => {
-    async function fetchBalances() {
-      if (!isConnected || !address) {
-        setSuiBalance('0');
-        setLuckBalance('0');
-        return;
-      }
-
-      setIsLoading(true);
-      try {
-        if (isWalletConnected) {
-          // Use wallet hooks for dapp-kit connected wallet
-          const [sui, luck] = await Promise.all([
-            getBalance(),
-            getTokenBalance(LUCK_COIN_TYPE),
-          ]);
-          setSuiBalance(sui);
-          setLuckBalance(luck);
-        } else if (isZkLoginAuth && zkAddress) {
-          // Use client directly for zkLogin
-          const [suiBalanceRes, luckBalanceRes] = await Promise.all([
-            client.getBalance({ owner: zkAddress }),
-            client.getBalance({ owner: zkAddress, coinType: LUCK_COIN_TYPE }).catch(() => ({ totalBalance: '0' })),
-          ]);
-          setSuiBalance(suiBalanceRes.totalBalance);
-          setLuckBalance(luckBalanceRes.totalBalance);
-        }
-      } catch (error) {
-        console.error('Failed to fetch balances:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchBalances();
-  }, [isConnected, address, isWalletConnected, isZkLoginAuth, zkAddress, getBalance, getTokenBalance, client, LUCK_COIN_TYPE]);
-
-  const handleDisconnect = () => {
-    if (isWalletConnected) {
-      disconnectWallet();
-    } else if (isZkLoginAuth) {
-      zkLogout();
-    }
+  const handlePlayClick = () => {
+    router.push('/play');
   };
 
   return (
-    <main className="min-h-screen p-8">
-      <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-title mb-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">Toppest</h1>
-          <p className="text-gray-400">SUI Network - Play to Earn</p>
+    <div className="min-h-screen bg-[#0F1419] text-white overflow-hidden">
+      {/* Background Gradient Mesh */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-[#4DA2FF]/10 rounded-full blur-[120px] -translate-x-1/2 -translate-y-1/2" />
+        <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-purple-500/10 rounded-full blur-[120px] translate-x-1/2 translate-y-1/2" />
+      </div>
+
+      {/* Header */}
+      <header className="relative z-10 flex items-center justify-between px-6 py-4 max-w-7xl mx-auto">
+        <div className="flex items-center gap-2">
+          <span className="font-title text-xl bg-gradient-to-r from-[#4DA2FF] to-purple-500 bg-clip-text text-transparent">
+            TOPPEST
+          </span>
         </div>
+        <button
+          onClick={handlePlayClick}
+          className="px-4 py-2 bg-[#4DA2FF] text-white rounded-full text-sm font-medium hover:bg-[#4DA2FF]/80 transition-colors"
+        >
+          Play Now
+        </button>
+      </header>
 
-        {/* Wallet Connection Card */}
-        <div className="card mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold">Wallet</h2>
-            <div className={`badge ${isConnected ? 'badge-success' : 'badge-warning'}`}>
-              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
-              {isConnected ? (authMethod === 'zklogin' ? 'Google' : 'Connected') : 'Not Connected'}
-            </div>
+      {/* Hero Section */}
+      <section className="relative z-10 flex flex-col items-center justify-center min-h-[80vh] px-6 text-center">
+        {/* Glow behind logo */}
+        <div className="absolute w-[300px] h-[300px] bg-[#4DA2FF]/20 rounded-full blur-[100px]" />
+
+        <h1 className="font-title text-5xl md:text-7xl font-black tracking-wider bg-gradient-to-r from-[#4DA2FF] to-purple-500 bg-clip-text text-transparent mb-4 relative">
+          TOPPEST
+        </h1>
+        <p className="text-white/60 text-lg md:text-xl mb-2">
+          Rise to the Top on SUI
+        </p>
+        <p className="text-white/40 text-sm max-w-md mb-8">
+          Play mini-games, compete on leaderboards, and earn real SUI rewards
+        </p>
+
+        <button
+          onClick={handlePlayClick}
+          className="px-8 py-4 bg-gradient-to-r from-[#4DA2FF] to-blue-400 rounded-full font-bold text-lg shadow-[0_0_30px_rgba(77,163,255,0.4)] hover:shadow-[0_0_40px_rgba(77,163,255,0.6)] transition-all hover:-translate-y-1"
+        >
+          Play Now
+        </button>
+
+        {/* Stats */}
+        <div className="flex gap-8 mt-12">
+          <div className="text-center">
+            <p className="text-2xl font-bold text-white">12+</p>
+            <p className="text-white/40 text-sm">Mini Games</p>
           </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-[#4DA2FF]">5,000</p>
+            <p className="text-white/40 text-sm">SUI Weekly Prizes</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-purple-400">1,000+</p>
+            <p className="text-white/40 text-sm">Players</p>
+          </div>
+        </div>
+      </section>
 
-          {/* Wallet Info (when connected) */}
-          {isConnected && address && (
-            <div className="space-y-4">
-              {/* Auth Method Badge */}
-              <div className="flex items-center justify-center gap-2 mb-4">
-                {authMethod === 'zklogin' && (
-                  <span className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-sm">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                    </svg>
-                    Signed in with Google
-                  </span>
-                )}
+      {/* Features Section */}
+      <section className="relative z-10 py-20 px-6">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-bold text-center mb-12">
+            How It Works
+          </h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* Feature 1 */}
+            <div className="p-6 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
+              <div className="w-12 h-12 bg-[#4DA2FF]/20 rounded-xl flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-[#4DA2FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
               </div>
-
-              {/* Address */}
-              <div className="flex items-center justify-between p-4 bg-black/30 rounded-lg">
-                <span className="text-gray-400">Address</span>
-                <a
-                  href={getExplorerAddressUrl(address)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:text-blue-300 font-mono"
-                >
-                  {shortenAddress(address)}
-                </a>
-              </div>
-
-              {/* SUI Balance */}
-              <div className="flex items-center justify-between p-4 bg-black/30 rounded-lg">
-                <span className="text-gray-400">SUI Balance</span>
-                <span className="font-semibold">
-                  {isLoading ? '...' : `${formatSui(suiBalance)} SUI`}
-                </span>
-              </div>
-
-              {/* LUCK Balance */}
-              <div className="flex items-center justify-between p-4 bg-black/30 rounded-lg">
-                <span className="text-gray-400">$LUCK Balance</span>
-                <span className="font-semibold text-yellow-400">
-                  {isLoading ? '...' : `${formatSui(luckBalance)} LUCK`}
-                </span>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="grid grid-cols-3 gap-3 mt-4">
-                <Link href="/profile" className="btn btn-secondary text-center">
-                  Profile
-                </Link>
-                <Link href="/shop" className="btn btn-primary text-center">
-                  Shop
-                </Link>
-                <button
-                  onClick={handleDisconnect}
-                  className="btn btn-secondary"
-                >
-                  Logout
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Connect Options (when not connected) */}
-          {!isConnected && (
-            <div className="space-y-6">
-              {/* Wallet Connect */}
-              <div className="flex justify-center">
-                <ConnectButton />
-              </div>
-
-              {/* Divider */}
-              <div className="flex items-center gap-4">
-                <div className="flex-1 h-px bg-gray-700"></div>
-                <span className="text-gray-500 text-sm">or</span>
-                <div className="flex-1 h-px bg-gray-700"></div>
-              </div>
-
-              {/* Google Sign In (zkLogin) */}
-              <button
-                onClick={zkLogin}
-                disabled={zkLoading}
-                className="w-full flex items-center justify-center gap-3 p-4 bg-white text-gray-800 rounded-lg font-medium hover:bg-gray-100 transition-colors disabled:opacity-50"
-              >
-                {zkLoading ? (
-                  <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <svg className="w-5 h-5" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                  </svg>
-                )}
-                Continue with Google
-              </button>
-
-              <p className="text-center text-gray-500 text-sm">
-                No wallet? Sign in with Google to create one instantly
+              <h3 className="font-bold text-lg mb-2">1. Connect</h3>
+              <p className="text-white/50 text-sm">
+                Connect your SUI wallet or sign in with Google. No wallet? We&apos;ll create one for you.
               </p>
             </div>
-          )}
-        </div>
 
-        {/* Network Info */}
-        <div className="card">
-          <h3 className="text-lg font-semibold mb-4">Network Info</h3>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-400">Network</span>
-              <span className="badge badge-warning">Devnet</span>
+            {/* Feature 2 */}
+            <div className="p-6 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
+              <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="font-bold text-lg mb-2">2. Play</h3>
+              <p className="text-white/50 text-sm">
+                Choose from 12+ mini-games. Compete for high scores and climb the leaderboards.
+              </p>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">Package ID</span>
-              <a
-                href={`https://suiscan.xyz/devnet/object/${PACKAGE_ID}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:text-blue-300 font-mono text-xs"
-              >
-                {shortenAddress(PACKAGE_ID)}
-              </a>
+
+            {/* Feature 3 */}
+            <div className="p-6 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
+              <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="font-bold text-lg mb-2">3. Earn</h3>
+              <p className="text-white/50 text-sm">
+                Win SUI tokens and $LUCK rewards. Top players share weekly prize pools.
+              </p>
             </div>
           </div>
         </div>
+      </section>
 
-        {/* Footer */}
-        <div className="text-center mt-8 text-gray-500 text-sm">
-          <p>Toppest - SUI Network</p>
+      {/* Games Preview Section */}
+      <section className="relative z-10 py-20 px-6">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-bold text-center mb-4">
+            Featured Games
+          </h2>
+          <p className="text-white/50 text-center mb-12">
+            Compete in skill-based mini-games and earn rewards
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {['Space Shooter', 'Crypto Slots', 'Puzzle Rush', 'Speed Runner'].map((game, i) => (
+              <div
+                key={game}
+                onClick={handlePlayClick}
+                className="aspect-square bg-gradient-to-br from-white/10 to-white/5 border border-white/10 rounded-2xl flex flex-col items-center justify-center p-4 hover:border-[#4DA2FF]/50 transition-colors cursor-pointer"
+              >
+                <div className="w-16 h-16 bg-white/10 rounded-xl mb-3 flex items-center justify-center">
+                  <span className="text-2xl">{['🚀', '🎰', '🧩', '🏃'][i]}</span>
+                </div>
+                <p className="font-medium text-sm text-center">{game}</p>
+                <p className="text-[#4DA2FF] text-xs mt-1">+50 SUI</p>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
-    </main>
+      </section>
+
+      {/* CTA Section */}
+      <section className="relative z-10 py-20 px-6">
+        <div className="max-w-2xl mx-auto text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            Ready to Rise to the Top?
+          </h2>
+          <p className="text-white/50 mb-8">
+            Join thousands of players earning SUI rewards every day
+          </p>
+          <button
+            onClick={handlePlayClick}
+            className="px-8 py-4 bg-gradient-to-r from-[#4DA2FF] to-blue-400 rounded-full font-bold text-lg shadow-[0_0_30px_rgba(77,163,255,0.4)] hover:shadow-[0_0_40px_rgba(77,163,255,0.6)] transition-all hover:-translate-y-1"
+          >
+            Start Playing Now
+          </button>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="relative z-10 py-8 px-6 border-t border-white/10">
+        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="font-title text-lg bg-gradient-to-r from-[#4DA2FF] to-purple-500 bg-clip-text text-transparent">
+              TOPPEST
+            </span>
+            <span className="text-white/30 text-sm">|</span>
+            <span className="text-white/30 text-sm">Powered by SUI Network</span>
+          </div>
+          <div className="flex items-center gap-6 text-white/40 text-sm">
+            <a href="#" className="hover:text-white transition-colors">Terms</a>
+            <a href="#" className="hover:text-white transition-colors">Privacy</a>
+            <a href="#" className="hover:text-white transition-colors">Discord</a>
+            <a href="#" className="hover:text-white transition-colors">Twitter</a>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }

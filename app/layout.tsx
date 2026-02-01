@@ -10,6 +10,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <title>Toppest - SUI Network</title>
+        <meta name="description" content="Toppest - Play to Earn on SUI Network" />
+      </head>
       <body>
         <SuiWalletProvider>
           {children}

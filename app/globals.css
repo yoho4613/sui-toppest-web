@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap');
 
 :root {
   --background: #0a0a0a;
@@ -82,4 +83,12 @@ body {
 .badge-error {
   background: rgba(239, 68, 68, 0.1);
   color: var(--error);
+}
+
+/* Title font style */
+.font-title {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }

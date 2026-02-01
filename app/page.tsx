@@ -100,7 +100,7 @@ export default function Home() {
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-2">Lucky Day</h1>
+          <h1 className="text-4xl font-title mb-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">Toppest</h1>
           <p className="text-gray-400">SUI Network - Play to Earn</p>
         </div>
 
@@ -244,7 +244,7 @@ export default function Home() {
 
         {/* Footer */}
         <div className="text-center mt-8 text-gray-500 text-sm">
-          <p>Lucky Day SUI - Phase 2 Development</p>
+          <p>Toppest - SUI Network</p>
         </div>
       </div>
     </main>

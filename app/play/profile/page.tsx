@@ -251,6 +251,23 @@ export default function ProfilePage() {
               {isBalanceLoading ? '...' : formatSui(luckBalance)}
             </p>
           </div>
+
+          {/* USDsui - Coming Soon */}
+          <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl opacity-60">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center relative">
+                <span className="text-green-400 font-bold">$</span>
+                <span className="absolute -top-1 -right-1 px-1.5 py-0.5 text-[8px] font-bold bg-purple-500 text-white rounded-full">
+                  SOON
+                </span>
+              </div>
+              <div>
+                <p className="font-semibold text-white">USDsui</p>
+                <p className="text-gray-500 text-xs">Stablecoin</p>
+              </div>
+            </div>
+            <p className="font-bold text-gray-500">--</p>
+          </div>
         </div>
       </div>
 

@@ -23,7 +23,7 @@ const SPIN_PACKAGES: SpinPackage[] = [
   { id: 'pack_100', spins: 100, priceUsd: 12.25, luckPrice: 700, label: 'Premium', bonus: '+30%', luckDiscount: '-30%' },
 ];
 
-type PaymentMethod = 'sui' | 'luck';
+type PaymentMethod = 'sui' | 'luck' | 'usdsui';
 type PurchaseStatus = 'idle' | 'creating' | 'signing' | 'verifying' | 'success' | 'error';
 
 const PACKAGE_ID = '0x5cbe88ff66b4772358bcda0e509b955d3c51d05f956343253f8d780a5361c661';
@@ -352,16 +352,18 @@ export default function ShopPage() {
       <div className="bg-[#1A1F26] border border-white/10 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-3">
           <span className="text-gray-400 text-sm">Your Balance</span>
-          <span className={`text-sm font-bold ${paymentMethod === 'sui' ? 'text-[#4DA2FF]' : 'text-yellow-400'}`}>
-            {paymentMethod === 'sui'
-              ? `${formatSui(suiBalance)} SUI`
-              : `${formatSui(luckBalance)} LUCK`
-            }
+          <span className={`text-sm font-bold ${
+            paymentMethod === 'sui' ? 'text-[#4DA2FF]' :
+            paymentMethod === 'luck' ? 'text-yellow-400' : 'text-green-400'
+          }`}>
+            {paymentMethod === 'sui' && `${formatSui(suiBalance)} SUI`}
+            {paymentMethod === 'luck' && `${formatSui(luckBalance)} LUCK`}
+            {paymentMethod === 'usdsui' && '-- USDsui'}
           </span>
         </div>
 
         {/* Payment Toggle */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <button
             onClick={() => setPaymentMethod('sui')}
             className={`p-3 rounded-xl font-semibold text-sm transition-all ${
@@ -370,7 +372,7 @@ export default function ShopPage() {
                 : 'bg-white/5 text-gray-400 hover:text-white'
             }`}
           >
-            Pay with SUI
+            SUI
           </button>
           <button
             onClick={() => setPaymentMethod('luck')}
@@ -380,7 +382,16 @@ export default function ShopPage() {
                 : 'bg-white/5 text-gray-400 hover:text-white'
             }`}
           >
-            Pay with LUCK
+            LUCK
+          </button>
+          <button
+            disabled
+            className="p-3 rounded-xl font-semibold text-sm bg-white/5 text-gray-500 cursor-not-allowed relative"
+          >
+            <span className="opacity-50">USDsui</span>
+            <span className="absolute -top-1 -right-1 px-1.5 py-0.5 text-[8px] font-bold bg-purple-500 text-white rounded-full">
+              SOON
+            </span>
           </button>
         </div>
       </div>

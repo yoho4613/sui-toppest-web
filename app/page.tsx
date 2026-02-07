@@ -19,7 +19,12 @@ export default function LandingPage() {
 
       {/* Header */}
       <header className="relative z-10 flex items-center justify-between px-6 py-4 max-w-7xl mx-auto">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <img
+            src="/images/toppest-logo.png"
+            alt="TOPPEST"
+            className="w-8 h-8 object-contain"
+          />
           <span className="font-title text-xl bg-gradient-to-r from-[#4DA2FF] to-purple-500 bg-clip-text text-transparent">
             TOPPEST
           </span>
@@ -36,6 +41,13 @@ export default function LandingPage() {
       <section className="relative z-10 flex flex-col items-center justify-center min-h-[80vh] px-6 text-center">
         {/* Glow behind logo */}
         <div className="absolute w-[300px] h-[300px] bg-[#4DA2FF]/20 rounded-full blur-[100px]" />
+
+        {/* Logo Image */}
+        <img
+          src="/images/toppest-logo.png"
+          alt="TOPPEST"
+          className="w-24 h-24 md:w-32 md:h-32 object-contain mb-4 relative"
+        />
 
         <h1 className="font-title text-5xl md:text-7xl font-black tracking-wider bg-gradient-to-r from-[#4DA2FF] to-purple-500 bg-clip-text text-transparent mb-4 relative">
           TOPPEST
@@ -170,6 +182,11 @@ export default function LandingPage() {
       <footer className="relative z-10 py-8 px-6 border-t border-white/10">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
+            <img
+              src="/images/toppest-logo.png"
+              alt="TOPPEST"
+              className="w-6 h-6 object-contain"
+            />
             <span className="font-title text-lg bg-gradient-to-r from-[#4DA2FF] to-purple-500 bg-clip-text text-transparent">
               TOPPEST
             </span>

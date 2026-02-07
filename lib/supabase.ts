@@ -47,10 +47,23 @@ export interface GameRecord {
   wallet_address: string;
   game_type: string;
   score: number;
+  distance: number;
+  time_ms: number;
   luck_earned: number;
   club_earned: number;
   season_id: number | null;
   played_at: string;
+}
+
+export interface DailyTicket {
+  id: string;
+  wallet_address: string;
+  game_type: string;
+  date: string; // YYYY-MM-DD format
+  tickets_used: number;
+  max_tickets: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Season {

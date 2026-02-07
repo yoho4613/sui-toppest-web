@@ -1,0 +1,171 @@
+'use client';
+
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { Canvas } from '@react-three/fiber';
+import { PerspectiveCamera } from '@react-three/drei';
+import { Physics } from '@react-three/rapier';
+import { Player } from './objects/Player';
+import { Track, Environment } from './objects/Track';
+import { ObstacleManager } from './objects/ObstacleManager';
+import { GameHUD } from './ui/GameHUD';
+import { CountdownOverlay, MenuOverlay, ResultOverlay } from './ui/CountdownOverlay';
+import { ControlPad } from './ui/ControlPad';
+import { useControls } from './hooks/useControls';
+import { useGameStore } from './hooks/useGameStore';
+import { useGameAudio } from './hooks/useGameAudio';
+
+// Game loop component
+function GameLoop() {
+  const status = useGameStore((state) => state.status);
+  const storeRef = useRef(useGameStore.getState());
+
+  useEffect(() => {
+    const unsubscribe = useGameStore.subscribe((state) => {
+      storeRef.current = state;
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (status !== 'playing') return;
+
+    let lastTime = performance.now();
+    let animationId: number;
+
+    const gameLoop = (currentTime: number) => {
+      const delta = (currentTime - lastTime) / 1000;
+      lastTime = currentTime;
+
+      storeRef.current.updateDistance(delta);
+      storeRef.current.updateTime(delta);
+      storeRef.current.updateEnergy(delta);
+
+      animationId = requestAnimationFrame(gameLoop);
+    };
+
+    animationId = requestAnimationFrame(gameLoop);
+
+    return () => {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+    };
+  }, [status]);
+
+  return null;
+}
+
+// Game scene with 3D elements
+function GameScene() {
+  const status = useGameStore((state) => state.status);
+
+  return (
+    <>
+      <Environment />
+
+      {/* Camera */}
+      <PerspectiveCamera
+        makeDefault
+        position={[0, 4, 8]}
+        rotation={[-0.3, 0, 0]}
+        fov={60}
+      />
+
+      {/* Game elements */}
+      <Physics gravity={[0, -30, 0]} paused={status !== 'playing'}>
+        <Player />
+        <Track />
+        {(status === 'playing' || status === 'countdown') && <ObstacleManager />}
+      </Physics>
+    </>
+  );
+}
+
+// Controls wrapper
+function ControlsWrapper() {
+  useControls();
+  return null;
+}
+
+// Audio manager with mute button
+function AudioManager() {
+  const { toggleMute } = useGameAudio();
+  const [isMuted, setIsMuted] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('dashTrials_audioMuted');
+    setIsMuted(saved === 'true');
+  }, []);
+
+  const handleToggle = () => {
+    const newMuted = toggleMute();
+    setIsMuted(newMuted);
+  };
+
+  return (
+    <button
+      onClick={handleToggle}
+      className="absolute top-4 right-4 z-50 w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm border border-white/20 flex items-center justify-center text-xl hover:bg-black/70 transition-colors"
+      aria-label={isMuted ? 'Unmute' : 'Mute'}
+    >
+      {isMuted ? '🔇' : '🔊'}
+    </button>
+  );
+}
+
+// Loading fallback
+function LoadingFallback() {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-black">
+      <div className="text-center">
+        <div className="w-16 h-16 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mb-4 mx-auto" />
+        <p className="text-gray-400">Loading game...</p>
+      </div>
+    </div>
+  );
+}
+
+// Main game component
+export function DashTrialsGame() {
+  useEffect(() => {
+    // Reset on unmount
+    return () => {
+      useGameStore.getState().reset();
+    };
+  }, []);
+
+  return (
+    <div className="relative w-full h-full bg-black overflow-hidden">
+      {/* 3D Canvas */}
+      <Canvas
+        shadows
+        gl={{ antialias: true, alpha: false }}
+        dpr={[1, 2]}
+        className="touch-none"
+      >
+        <Suspense fallback={null}>
+          <GameScene />
+        </Suspense>
+      </Canvas>
+
+      {/* Game loop */}
+      <GameLoop />
+
+      {/* Controls */}
+      <ControlsWrapper />
+
+      {/* UI Overlays */}
+      <GameHUD />
+      <ControlPad />
+      <AudioManager />
+      <CountdownOverlay />
+      <MenuOverlay />
+      <ResultOverlay />
+
+      {/* Loading state (outside canvas) */}
+      <Suspense fallback={<LoadingFallback />}>
+        <div />
+      </Suspense>
+    </div>
+  );
+}

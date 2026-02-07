@@ -1,0 +1,76 @@
+/**
+ * Game Ticket API
+ *
+ * GET: Check remaining tickets for today
+ * POST: Use a ticket (called before game starts)
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { checkTicketStatus, useTicket } from '@/lib/db';
+
+// GET /api/game/ticket?address=0x...&game_type=dash-trials
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const address = searchParams.get('address');
+    const gameType = searchParams.get('game_type');
+
+    if (!address || !gameType) {
+      return NextResponse.json(
+        { error: 'Missing required parameters' },
+        { status: 400 }
+      );
+    }
+
+    const status = await checkTicketStatus(address, gameType);
+
+    return NextResponse.json(status);
+  } catch (error) {
+    console.error('Ticket check API error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/game/ticket - Use a ticket
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { wallet_address, game_type } = body;
+
+    if (!wallet_address || !game_type) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    const result = await useTicket(wallet_address, game_type);
+
+    if (!result.success) {
+      return NextResponse.json(
+        {
+          error: result.error || 'No tickets remaining for today',
+          canPlay: false,
+          remainingTickets: result.remainingTickets,
+        },
+        { status: 403 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      canPlay: true,
+      remainingTickets: result.remainingTickets,
+      ticketsUsed: result.ticketsUsed,
+    });
+  } catch (error) {
+    console.error('Ticket use API error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}

@@ -2,13 +2,22 @@
 
 import { useSuiWallet } from '@/hooks/useSuiWallet';
 import { useZkLogin } from '@/hooks/useZkLogin';
-import { formatSui } from '@/lib/sui-utils';
+import { mistToSui } from '@/lib/sui-utils';
 import { useEffect, useState } from 'react';
 import { useSuiClient } from '@mysten/dapp-kit';
 import Link from 'next/link';
 
 const PACKAGE_ID = '0x5cbe88ff66b4772358bcda0e509b955d3c51d05f956343253f8d780a5361c661';
 const LUCK_COIN_TYPE = `${PACKAGE_ID}::luck_token::LUCK_TOKEN`;
+
+/** Format balance with 2 decimals, use k suffix for 1000+ */
+function formatBalance(mist: bigint | string): string {
+  const value = mistToSui(mist);
+  if (value >= 1000) {
+    return (value / 1000).toFixed(2) + 'k';
+  }
+  return value.toFixed(2);
+}
 
 export function AppHeader() {
   const client = useSuiClient();
@@ -62,7 +71,7 @@ export function AppHeader() {
   return (
     <header className="flex items-center justify-between px-5 pt-6 pb-4 sticky top-0 bg-[#0F1419]/90 backdrop-blur-lg z-40">
       {/* Left: Avatar */}
-      <Link href="/play/profile" className="flex items-center gap-3">
+      <Link href="/play/profile">
         <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#4DA2FF] to-purple-500 p-[2px]">
           <div className="w-full h-full rounded-full bg-[#1A1F26] flex items-center justify-center overflow-hidden">
             {avatar ? (
@@ -78,12 +87,14 @@ export function AppHeader() {
 
       {/* Right: Balances */}
       <div className="flex items-center gap-2">
-        {/* Energy (placeholder - can be dynamic later) */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1A1F26] border border-white/5 rounded-full">
-          <svg className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+        {/* SUI Balance */}
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#6FBCF0]/20 border border-[#6FBCF0]/30 rounded-full">
+          <svg className="w-4 h-4 text-[#6FBCF0]" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M16.129 9.541a6.39 6.39 0 0 0-1.078-1.588L12 4.707 8.949 7.953a6.39 6.39 0 0 0-1.078 1.588A6.076 6.076 0 0 0 7.2 12.5c0 2.652 2.149 4.8 4.8 4.8s4.8-2.148 4.8-4.8a6.076 6.076 0 0 0-.671-2.959zM12 15.7a3.2 3.2 0 0 1-3.2-3.2c0-.697.148-1.368.438-1.996.173-.374.395-.723.66-1.041L12 7.293l2.102 2.17c.265.318.487.667.66 1.041.29.628.438 1.299.438 1.996a3.2 3.2 0 0 1-3.2 3.2z"/>
           </svg>
-          <span className="text-xs font-bold text-white">5/5</span>
+          <span className="text-xs font-bold text-[#6FBCF0]">
+            {formatBalance(suiBalance)} SUI
+          </span>
         </div>
 
         {/* LUCK Balance */}
@@ -95,7 +106,7 @@ export function AppHeader() {
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z" />
           </svg>
           <span className="text-xs font-bold text-[#4DA2FF]">
-            {formatSui(luckBalance)} LUCK
+            {formatBalance(luckBalance)} LUCK
           </span>
         </Link>
       </div>

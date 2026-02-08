@@ -29,8 +29,10 @@ function GameLobby() {
 
   const { checkTickets, isLoadingTickets } = useGameAPI();
   const [ticketStatus, setTicketStatus] = useState<{
-    remainingTickets: number;
-    maxTickets: number;
+    dailyTickets: number;
+    maxDailyTickets: number;
+    starTickets: number;
+    totalTickets: number;
   } | null>(null);
 
   // Fetch ticket status on mount
@@ -39,8 +41,10 @@ function GameLobby() {
       checkTickets(address, GAME_TYPE).then((result) => {
         if (result) {
           setTicketStatus({
-            remainingTickets: result.remainingTickets,
-            maxTickets: result.maxTickets,
+            dailyTickets: result.dailyTickets,
+            maxDailyTickets: result.maxDailyTickets,
+            starTickets: result.starTickets,
+            totalTickets: result.totalTickets,
           });
         }
       });
@@ -66,21 +70,30 @@ function GameLobby() {
 
           {/* Ticket Count */}
           <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 rounded-xl px-3 py-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">🎟️</span>
-              <div className="text-right">
-                {isLoadingTickets ? (
-                  <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                ) : ticketStatus ? (
-                  <div className="flex items-baseline gap-0.5">
-                    <span className="text-white font-bold text-lg">{ticketStatus.remainingTickets}</span>
-                    <span className="text-gray-400 text-xs">/{ticketStatus.maxTickets}</span>
-                  </div>
-                ) : (
-                  <span className="text-gray-400 text-sm">3/3</span>
-                )}
+            {isLoadingTickets ? (
+              <div className="flex items-center justify-center">
+                <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
               </div>
-            </div>
+            ) : ticketStatus ? (
+              <div className="flex flex-col gap-1">
+                {/* Daily Tickets */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm">🎟️</span>
+                  <span className="text-white font-bold text-sm">{ticketStatus.dailyTickets}</span>
+                  <span className="text-gray-400 text-xs">/{ticketStatus.maxDailyTickets}</span>
+                </div>
+                {/* Star Tickets */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm">⭐</span>
+                  <span className="text-yellow-400 font-bold text-sm">{ticketStatus.starTickets}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🎟️</span>
+                <span className="text-gray-400 text-sm">3/3</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

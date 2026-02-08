@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../hooks/useGameStore';
+import { useClubRewards } from '../hooks/useClubRewards';
 import { useGameAPI } from '@/hooks/useGameAPI';
 import { useSuiWallet } from '@/hooks/useSuiWallet';
 import { useZkLogin } from '@/hooks/useZkLogin';
+import { formatReward } from '@/lib/rewards/club-rewards';
 
 const GAME_TYPE = 'dash-trials';
 
@@ -62,8 +64,10 @@ export function MenuOverlay() {
   const { checkTickets, useTicket, isLoadingTickets } = useGameAPI();
   const [ticketStatus, setTicketStatus] = useState<{
     canPlay: boolean;
-    remainingTickets: number;
-    maxTickets: number;
+    dailyTickets: number;
+    maxDailyTickets: number;
+    starTickets: number;
+    totalTickets: number;
   } | null>(null);
   const [ticketError, setTicketError] = useState<string | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -75,7 +79,13 @@ export function MenuOverlay() {
       setTicketError(null);
       checkTickets(address, GAME_TYPE).then((result) => {
         if (result) {
-          setTicketStatus(result);
+          setTicketStatus({
+            canPlay: result.canPlay,
+            dailyTickets: result.dailyTickets,
+            maxDailyTickets: result.maxDailyTickets,
+            starTickets: result.starTickets,
+            totalTickets: result.totalTickets,
+          });
         }
         setIsInitialLoading(false);
       });
@@ -96,16 +106,18 @@ export function MenuOverlay() {
     const result = await useTicket(address, GAME_TYPE);
 
     if (!result || !result.success) {
-      setTicketError('No tickets remaining for today. Come back tomorrow!');
-      setTicketStatus((prev) => prev ? { ...prev, canPlay: false, remainingTickets: 0 } : null);
+      setTicketError('No tickets remaining. Get more Star Tickets!');
+      setTicketStatus((prev) => prev ? { ...prev, canPlay: false, totalTickets: 0 } : null);
       return;
     }
 
     // Update ticket status
     setTicketStatus((prev) => prev ? {
       ...prev,
-      remainingTickets: result.remainingTickets,
-      canPlay: result.remainingTickets > 0,
+      dailyTickets: result.dailyTickets,
+      starTickets: result.starTickets,
+      totalTickets: result.totalTickets,
+      canPlay: result.totalTickets > 0,
     } : null);
 
     // Start the game
@@ -121,33 +133,58 @@ export function MenuOverlay() {
         <h1 className="text-3xl font-bold text-white mb-2">DASH TRIALS</h1>
         <p className="text-gray-400 mb-4">Endless runner - how far can you go?</p>
 
-        {/* Ticket Status */}
+        {/* Ticket Status - Daily + Star */}
         <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 rounded-xl p-4 mb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">🎟️</span>
-              <span className="text-gray-400 text-sm">Daily Tickets</span>
+          {isInitialLoading ? (
+            <div className="flex items-center justify-center gap-2 py-2">
+              <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+              <span className="text-gray-400 text-sm">Loading tickets...</span>
             </div>
-            <div className="text-right">
-              {isInitialLoading ? (
+          ) : ticketStatus ? (
+            <>
+              {/* Daily Tickets */}
+              <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-gray-400 text-sm">Loading...</span>
+                  <span className="text-xl">🎟️</span>
+                  <span className="text-gray-400 text-sm">Daily Tickets</span>
                 </div>
-              ) : ticketStatus ? (
-                <>
-                  <span className="text-white font-bold text-xl">
-                    {ticketStatus.remainingTickets}
+                <div className="text-right">
+                  <span className="text-white font-bold text-lg">
+                    {ticketStatus.dailyTickets}
                   </span>
-                  <span className="text-gray-400 text-sm"> / {ticketStatus.maxTickets}</span>
-                </>
-              ) : (
-                <span className="text-gray-400 text-sm">3 / 3</span>
-              )}
+                  <span className="text-gray-400 text-sm"> / {ticketStatus.maxDailyTickets}</span>
+                </div>
+              </div>
+              {/* Star Tickets */}
+              <div className="flex items-center justify-between pt-2 border-t border-white/10">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">⭐</span>
+                  <span className="text-yellow-400 text-sm">Star Tickets</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-yellow-400 font-bold text-lg">
+                    {ticketStatus.starTickets}
+                  </span>
+                </div>
+              </div>
+              {/* Total */}
+              <div className="flex items-center justify-center mt-3 pt-2 border-t border-white/10">
+                <span className="text-gray-400 text-sm">Total: </span>
+                <span className="text-white font-bold text-lg ml-1">{ticketStatus.totalTickets}</span>
+                <span className="text-gray-400 text-sm ml-1">plays available</span>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🎟️</span>
+                <span className="text-gray-400 text-sm">Daily Tickets</span>
+              </div>
+              <span className="text-gray-400 text-sm">3 / 3</span>
             </div>
-          </div>
-          {ticketStatus?.remainingTickets === 0 && (
-            <p className="text-red-400 text-xs mt-2">Come back tomorrow for more plays!</p>
+          )}
+          {ticketStatus?.totalTickets === 0 && (
+            <p className="text-red-400 text-xs mt-2 text-center">No tickets! Get Star Tickets or wait for daily reset.</p>
           )}
         </div>
 
@@ -159,29 +196,53 @@ export function MenuOverlay() {
           </div>
         )}
 
+        {/* $CLUB Reward Info */}
+        <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl p-4 mb-4">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <span className="text-2xl">🏆</span>
+            <span className="text-purple-400 font-bold">$CLUB Rewards</span>
+          </div>
+          <p className="text-white text-lg font-bold">100m = 1 CLUB</p>
+          <p className="text-gray-400 text-xs mt-1">거리에 비례하여 $CLUB 획득!</p>
+          <div className="flex items-center justify-center gap-4 mt-3 text-xs">
+            <div className="text-center">
+              <p className="text-gray-500">500m</p>
+              <p className="text-purple-400 font-bold">5</p>
+            </div>
+            <div className="text-center">
+              <p className="text-gray-500">1000m</p>
+              <p className="text-purple-400 font-bold">10</p>
+            </div>
+            <div className="text-center">
+              <p className="text-gray-500">2000m</p>
+              <p className="text-purple-400 font-bold">20</p>
+            </div>
+          </div>
+        </div>
+
         {/* Difficulty Info */}
         <div className="bg-white/5 rounded-xl p-4 mb-6">
           <p className="font-bold text-white mb-3">Difficulty Zones</p>
           <div className="space-y-2 text-sm text-left">
             <div className="flex justify-between items-center">
               <span className="text-green-400">Tutorial</span>
-              <span className="text-gray-400">0 - 200m</span>
+              <span className="text-gray-400">0 - 200m (0.5x)</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-cyan-400">Easy</span>
-              <span className="text-gray-400">200 - 500m</span>
+              <span className="text-gray-400">200 - 500m (0.8x)</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-yellow-400">Medium</span>
-              <span className="text-gray-400">500 - 1000m</span>
+              <span className="text-gray-400">500 - 1000m (1.0x)</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-orange-400">Hard</span>
-              <span className="text-gray-400">1000 - 2000m</span>
+              <span className="text-gray-400">1000 - 2000m (1.3x)</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-red-400">Extreme</span>
-              <span className="text-gray-400">2000m+</span>
+              <span className="text-gray-400">2000m+ (1.5x)</span>
             </div>
           </div>
         </div>
@@ -260,6 +321,7 @@ export function ResultOverlay() {
   const elapsedTime = useGameStore((state) => state.elapsedTime);
   const perfectCount = useGameStore((state) => state.perfectCount);
   const coinCount = useGameStore((state) => state.coinCount);
+  const potionCount = useGameStore((state) => state.potionCount);
   const feverCount = useGameStore((state) => state.feverCount);
   const highScore = useGameStore((state) => state.highScore);
   const difficulty = useGameStore((state) => state.difficulty);
@@ -268,39 +330,46 @@ export function ResultOverlay() {
   const { address: zkAddress } = useZkLogin();
   const address = walletAddress || zkAddress;
 
+  // Calculate $CLUB rewards
+  const clubRewards = useClubRewards();
+
   const { saveGameRecord, checkTickets, useTicket, isLoading } = useGameAPI();
   const [isSaved, setIsSaved] = useState(false);
-  const [luckEarned, setLuckEarned] = useState(0);
+  const [clubEarned, setClubEarned] = useState(0);
   const [ticketStatus, setTicketStatus] = useState<{
-    remainingTickets: number;
-    maxTickets: number;
+    dailyTickets: number;
+    maxDailyTickets: number;
+    starTickets: number;
+    totalTickets: number;
   } | null>(null);
   const hasSavedRef = useRef(false);
 
-  // Calculate score
+  // Calculate score (distance-based)
   const finalDistance = Math.floor(distance);
-  const distanceScore = finalDistance * 10;
-  const perfectBonus = perfectCount * 50;
-  const coinBonus = coinCount * 20;
-  const feverBonus = feverCount * 200;
-  const totalScore = distanceScore + perfectBonus + coinBonus + feverBonus;
+  const totalScore = finalDistance; // Score = Distance for simplicity
 
   // Save game record when game is over
   useEffect(() => {
     if (status === 'gameover' && address && !hasSavedRef.current) {
       hasSavedRef.current = true;
 
-      // Save game record
+      // Save game record with all stats for reward calculation
       saveGameRecord({
         wallet_address: address,
         game_type: GAME_TYPE,
         score: totalScore,
         distance: finalDistance,
         time_ms: Math.floor(elapsedTime),
+        // Additional stats for $CLUB reward calculation
+        fever_count: feverCount,
+        perfect_count: perfectCount,
+        coin_count: coinCount,
+        potion_count: potionCount,
+        difficulty: difficulty,
       }).then((result) => {
         if (result?.success) {
           setIsSaved(true);
-          setLuckEarned(result.rewards?.luck || 0);
+          setClubEarned(result.rewards?.club || 0);
         }
       });
 
@@ -308,8 +377,10 @@ export function ResultOverlay() {
       checkTickets(address, GAME_TYPE).then((result) => {
         if (result) {
           setTicketStatus({
-            remainingTickets: result.remainingTickets,
-            maxTickets: result.maxTickets,
+            dailyTickets: result.dailyTickets,
+            maxDailyTickets: result.maxDailyTickets,
+            starTickets: result.starTickets,
+            totalTickets: result.totalTickets,
           });
         }
       });
@@ -320,7 +391,7 @@ export function ResultOverlay() {
       hasSavedRef.current = false;
       setIsSaved(false);
     }
-  }, [status, address, totalScore, finalDistance, elapsedTime, saveGameRecord, checkTickets]);
+  }, [status, address, totalScore, finalDistance, elapsedTime, feverCount, perfectCount, coinCount, potionCount, difficulty, saveGameRecord, checkTickets]);
 
   if (status !== 'gameover') return null;
 
@@ -353,7 +424,7 @@ export function ResultOverlay() {
     if (!address) return;
 
     // Check if user has tickets
-    if (ticketStatus && ticketStatus.remainingTickets <= 0) {
+    if (ticketStatus && ticketStatus.totalTickets <= 0) {
       return;
     }
 
@@ -361,21 +432,23 @@ export function ResultOverlay() {
     const result = await useTicket(address, GAME_TYPE);
 
     if (!result || !result.success) {
-      setTicketStatus((prev) => prev ? { ...prev, remainingTickets: 0 } : null);
+      setTicketStatus((prev) => prev ? { ...prev, totalTickets: 0 } : null);
       return;
     }
 
     // Update ticket status
     setTicketStatus((prev) => prev ? {
       ...prev,
-      remainingTickets: result.remainingTickets,
+      dailyTickets: result.dailyTickets,
+      starTickets: result.starTickets,
+      totalTickets: result.totalTickets,
     } : null);
 
     // Start the game
     useGameStore.getState().startGame();
   };
 
-  const canRetry = ticketStatus ? ticketStatus.remainingTickets > 0 : true;
+  const canRetry = ticketStatus ? ticketStatus.totalTickets > 0 : true;
 
   return (
     <div className="absolute inset-0 flex items-start justify-center bg-black/80 backdrop-blur-sm z-50 overflow-y-auto">
@@ -396,39 +469,75 @@ export function ResultOverlay() {
           </p>
         </div>
 
-        {/* Stats */}
+        {/* $CLUB Rewards - Main Focus */}
+        <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl p-4 mb-4">
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <span className="text-2xl">🏆</span>
+            <span className="text-purple-400 font-bold text-lg">$CLUB Earned</span>
+          </div>
+          <p className="text-white text-4xl font-bold mb-3">
+            +{isSaved ? formatReward(clubEarned) : formatReward(clubRewards.totalReward)}
+          </p>
+
+          {/* Reward Breakdown */}
+          <div className="text-left bg-black/30 rounded-lg p-3 text-xs space-y-1">
+            <div className="flex justify-between">
+              <span className="text-gray-400">{finalDistance}m × 0.01</span>
+              <span className="text-cyan-400">+{clubRewards.baseReward}</span>
+            </div>
+            {clubRewards.feverBonus > 0 && (
+              <div className="flex justify-between">
+                <span className="text-gray-400">Fever ({feverCount}x)</span>
+                <span className="text-pink-400">+{clubRewards.feverBonus}</span>
+              </div>
+            )}
+            {clubRewards.perfectBonus > 0 && (
+              <div className="flex justify-between">
+                <span className="text-gray-400">Perfect ({perfectCount})</span>
+                <span className="text-purple-400">+{clubRewards.perfectBonus}</span>
+              </div>
+            )}
+            {clubRewards.coinBonus > 0 && (
+              <div className="flex justify-between">
+                <span className="text-gray-400">Coins ({coinCount})</span>
+                <span className="text-yellow-400">+{clubRewards.coinBonus}</span>
+              </div>
+            )}
+            {clubRewards.difficultyMultiplier !== 1 && (
+              <div className="flex justify-between pt-1 border-t border-white/10">
+                <span className="text-gray-400">Difficulty</span>
+                <span className="text-white">×{clubRewards.difficultyMultiplier}</span>
+              </div>
+            )}
+          </div>
+
+          {isSaved && (
+            <p className="text-green-400 text-xs mt-3">✓ Rewards saved</p>
+          )}
+        </div>
+
+        {/* Game Stats */}
         <div className="bg-white/5 rounded-xl p-4 mb-4 text-left">
-          <div className="space-y-3">
+          <p className="text-white font-bold mb-3">Game Stats</p>
+          <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-400">Time</span>
-              <span className="text-white font-mono font-bold">
-                {formatTime(elapsedTime)}
-              </span>
+              <span className="text-white font-mono">{formatTime(elapsedTime)}</span>
             </div>
-            <div className="border-t border-white/10 pt-3 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Distance</span>
-                <span className="text-cyan-400">+{distanceScore}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Perfect ({perfectCount})</span>
-                <span className="text-purple-400">+{perfectBonus}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Coins ({coinCount})</span>
-                <span className="text-yellow-400">+{coinBonus}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Fever ({feverCount})</span>
-                <span className="text-pink-400">+{feverBonus}</span>
-              </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Coins Collected</span>
+              <span className="text-yellow-400">{coinCount}</span>
             </div>
-            <div className="border-t border-white/10 pt-3 flex justify-between">
-              <span className="text-white font-bold">TOTAL SCORE</span>
-              <span className="text-green-400 font-bold text-2xl">{totalScore}</span>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Potions Used</span>
+              <span className="text-green-400">{potionCount}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Fever Activations</span>
+              <span className="text-pink-400">{feverCount}</span>
             </div>
             {highScore > 0 && (
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between pt-2 border-t border-white/10">
                 <span className="text-gray-400">Best Distance</span>
                 <span className="text-yellow-400">{highScore}m</span>
               </div>
@@ -436,27 +545,21 @@ export function ResultOverlay() {
           </div>
         </div>
 
-        {/* Rewards & Save Status */}
-        <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl p-3 mb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">🍀</span>
-              <span className="text-gray-400 text-sm">LUCK Earned</span>
-            </div>
-            <span className="text-purple-400 font-bold">+{luckEarned}</span>
-          </div>
-          {isSaved && (
-            <p className="text-green-400 text-xs mt-2">✓ Score saved to leaderboard</p>
-          )}
-        </div>
-
         {/* Remaining Tickets */}
         {ticketStatus && (
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <span className="text-gray-400 text-sm">Remaining tickets:</span>
-            <span className="text-white font-bold">
-              {ticketStatus.remainingTickets} / {ticketStatus.maxTickets}
-            </span>
+          <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-white/10 rounded-xl p-3 mb-4">
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-1">
+                <span>🎟️</span>
+                <span className="text-gray-400">Daily:</span>
+                <span className="text-white font-bold">{ticketStatus.dailyTickets}/{ticketStatus.maxDailyTickets}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span>⭐</span>
+                <span className="text-yellow-400">Star:</span>
+                <span className="text-yellow-400 font-bold">{ticketStatus.starTickets}</span>
+              </div>
+            </div>
           </div>
         )}
 

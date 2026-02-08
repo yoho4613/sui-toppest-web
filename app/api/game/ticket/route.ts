@@ -1,8 +1,8 @@
 /**
  * Game Ticket API
  *
- * GET: Check remaining tickets for today
- * POST: Use a ticket (called before game starts)
+ * GET: Check remaining tickets (daily + star)
+ * POST: Use a ticket (daily first, then star)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -52,8 +52,11 @@ export async function POST(request: NextRequest) {
     if (!result.success) {
       return NextResponse.json(
         {
-          error: result.error || 'No tickets remaining for today',
+          error: result.error || 'No tickets remaining',
           canPlay: false,
+          dailyTickets: result.dailyTickets,
+          starTickets: result.starTickets,
+          totalTickets: result.totalTickets,
           remainingTickets: result.remainingTickets,
         },
         { status: 403 }
@@ -63,6 +66,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       canPlay: true,
+      dailyTickets: result.dailyTickets,
+      starTickets: result.starTickets,
+      totalTickets: result.totalTickets,
+      usedType: result.usedType,
       remainingTickets: result.remainingTickets,
       ticketsUsed: result.ticketsUsed,
     });

@@ -12,6 +12,7 @@ import {
   getUserIdByWallet,
   getActiveSeason,
 } from '@/lib/db';
+import { calculateClubRewards } from '@/lib/rewards/club-rewards';
 
 // POST /api/game/record - Save game record
 export async function POST(request: NextRequest) {
@@ -23,6 +24,12 @@ export async function POST(request: NextRequest) {
       score,
       distance,
       time_ms,
+      // Game stats for reward calculation
+      fever_count,
+      perfect_count,
+      coin_count,
+      potion_count,
+      difficulty,
     } = body;
 
     if (!wallet_address || !game_type) {
@@ -44,9 +51,17 @@ export async function POST(request: NextRequest) {
     // Get active season (if any)
     const activeSeason = await getActiveSeason();
 
-    // Calculate rewards (can be adjusted later)
-    const luckEarned = Math.floor(score / 100); // 1 LUCK per 100 score
-    const clubEarned = 0; // Reserved for future use
+    // Calculate $CLUB rewards based on score and game stats
+    const rewardResult = calculateClubRewards(game_type, score, {
+      feverCount: fever_count || 0,
+      perfectCount: perfect_count || 0,
+      coinCount: coin_count || 0,
+      potionCount: potion_count || 0,
+      difficulty: difficulty || 'medium',
+    });
+
+    const clubEarned = rewardResult.totalReward;
+    const luckEarned = 0; // Deprecated: using $CLUB instead
 
     // Insert game record
     const result = await createGameRecord({
@@ -72,8 +87,8 @@ export async function POST(request: NextRequest) {
       success: true,
       record: result.record,
       rewards: {
-        luck: luckEarned,
         club: clubEarned,
+        breakdown: rewardResult.breakdown,
       },
     });
   } catch (error) {

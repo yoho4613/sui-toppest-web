@@ -6,10 +6,28 @@ import { useState, useCallback } from 'react';
 
 export interface TicketStatus {
   canPlay: boolean;
+  // Daily tickets
+  dailyTickets: number;
+  maxDailyTickets: number;
+  // Star tickets (bonus)
+  starTickets: number;
+  // Total
+  totalTickets: number;
+  // Legacy fields for compatibility
   remainingTickets: number;
   maxTickets: number;
   ticketsUsed: number;
   date: string;
+}
+
+export interface UseTicketResult {
+  success: boolean;
+  dailyTickets: number;
+  starTickets: number;
+  totalTickets: number;
+  usedType?: 'daily' | 'star';
+  remainingTickets: number;
+  ticketsUsed: number;
 }
 
 interface GameRecordInput {
@@ -18,6 +36,12 @@ interface GameRecordInput {
   score: number;
   distance: number;
   time_ms: number;
+  // Additional stats for $CLUB reward calculation
+  fever_count?: number;
+  perfect_count?: number;
+  coin_count?: number;
+  potion_count?: number;
+  difficulty?: string;
 }
 
 interface LeaderboardEntry {
@@ -63,6 +87,10 @@ export function useGameAPI() {
         // Return default values on error
         return {
           canPlay: true,
+          dailyTickets: 3,
+          maxDailyTickets: 3,
+          starTickets: 0,
+          totalTickets: 3,
           remainingTickets: 3,
           maxTickets: 3,
           ticketsUsed: 0,
@@ -77,6 +105,10 @@ export function useGameAPI() {
       // Return default values on network error
       return {
         canPlay: true,
+        dailyTickets: 3,
+        maxDailyTickets: 3,
+        starTickets: 0,
+        totalTickets: 3,
         remainingTickets: 3,
         maxTickets: 3,
         ticketsUsed: 0,
@@ -91,7 +123,7 @@ export function useGameAPI() {
   const useTicket = useCallback(async (
     walletAddress: string,
     gameType: string
-  ): Promise<{ success: boolean; remainingTickets: number; ticketsUsed: number } | null> => {
+  ): Promise<UseTicketResult | null> => {
     try {
       setIsLoadingTickets(true);
       setError(null);
@@ -111,6 +143,9 @@ export function useGameAPI() {
         setError(data.error || 'Failed to use ticket');
         return {
           success: false,
+          dailyTickets: data.dailyTickets ?? 0,
+          starTickets: data.starTickets ?? 0,
+          totalTickets: data.totalTickets ?? 0,
           remainingTickets: data.remainingTickets ?? 0,
           ticketsUsed: data.ticketsUsed ?? 3,
         };
@@ -118,6 +153,10 @@ export function useGameAPI() {
 
       return {
         success: true,
+        dailyTickets: data.dailyTickets,
+        starTickets: data.starTickets,
+        totalTickets: data.totalTickets,
+        usedType: data.usedType,
         remainingTickets: data.remainingTickets,
         ticketsUsed: data.ticketsUsed,
       };
@@ -127,6 +166,9 @@ export function useGameAPI() {
       // Allow play on network error (graceful degradation)
       return {
         success: true,
+        dailyTickets: 2,
+        starTickets: 0,
+        totalTickets: 2,
         remainingTickets: 2,
         ticketsUsed: 1,
       };

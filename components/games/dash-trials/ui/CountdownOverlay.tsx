@@ -188,16 +188,36 @@ export function MenuOverlay() {
 
         {/* Controls info */}
         <div className="bg-white/5 rounded-xl p-4 mb-6 text-sm text-gray-400">
-          <p className="font-bold text-white mb-2">Controls</p>
-          <div className="grid grid-cols-2 gap-2 text-left">
-            <div>↑ / W / Space: Jump</div>
-            <div>↓ / S: Slide</div>
-            <div>← / A: Move Left</div>
-            <div>→ / D: Move Right</div>
+          <p className="font-bold text-white mb-3">Controls</p>
+
+          {/* Mobile Touch Controls */}
+          <div className="mb-3">
+            <p className="text-cyan-400 text-xs font-semibold mb-2">📱 Touch</p>
+            <div className="flex items-center justify-center gap-1 mb-2">
+              <div className="flex-1 bg-green-500/20 border border-green-500/30 rounded-lg py-2 text-center text-green-400 text-xs">
+                ← Left
+              </div>
+              <div className="flex-1 bg-cyan-500/20 border border-cyan-500/30 rounded-lg py-2 text-center text-cyan-400 text-xs">
+                ↑ Jump
+              </div>
+              <div className="flex-1 bg-green-500/20 border border-green-500/30 rounded-lg py-2 text-center text-green-400 text-xs">
+                Right →
+              </div>
+            </div>
+            <p className="text-gray-500 text-xs text-center">Swipe ↑ Jump · Swipe ↓ Slide</p>
           </div>
-          <div className="mt-2 pt-2 border-t border-white/10">
-            <div>Mobile: Swipe gestures</div>
+
+          {/* Keyboard Controls */}
+          <div className="pt-2 border-t border-white/10">
+            <p className="text-cyan-400 text-xs font-semibold mb-2">⌨️ Keyboard</p>
+            <div className="grid grid-cols-2 gap-1 text-xs text-left">
+              <div>↑ / W / Space: Jump</div>
+              <div>↓ / S: Slide</div>
+              <div>← / A: Move Left</div>
+              <div>→ / D: Move Right</div>
+            </div>
           </div>
+
           <p className="text-yellow-400 mt-3 text-xs">Collect potions to restore energy!</p>
         </div>
 

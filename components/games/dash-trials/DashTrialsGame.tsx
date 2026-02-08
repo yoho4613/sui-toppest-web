@@ -9,7 +9,6 @@ import { Track, Environment } from './objects/Track';
 import { ObstacleManager } from './objects/ObstacleManager';
 import { GameHUD } from './ui/GameHUD';
 import { CountdownOverlay, MenuOverlay, ResultOverlay } from './ui/CountdownOverlay';
-import { ControlPad } from './ui/ControlPad';
 import { useControls } from './hooks/useControls';
 import { useGameStore } from './hooks/useGameStore';
 import { useGameAudio } from './hooks/useGameAudio';
@@ -113,6 +112,72 @@ function AudioManager() {
   );
 }
 
+// Touch zone hint overlay (shows briefly when game starts)
+function TouchZoneHint() {
+  const status = useGameStore((state) => state.status);
+  const [visible, setVisible] = useState(false);
+  const [opacity, setOpacity] = useState(0);
+
+  useEffect(() => {
+    if (status === 'playing') {
+      setVisible(true);
+      setOpacity(1);
+
+      // Fade out after 1.5 seconds
+      const fadeTimer = setTimeout(() => {
+        setOpacity(0);
+      }, 1500);
+
+      // Hide after fade completes
+      const hideTimer = setTimeout(() => {
+        setVisible(false);
+      }, 2000);
+
+      return () => {
+        clearTimeout(fadeTimer);
+        clearTimeout(hideTimer);
+      };
+    } else {
+      setVisible(false);
+      setOpacity(0);
+    }
+  }, [status]);
+
+  if (!visible) return null;
+
+  return (
+    <div
+      className="absolute inset-0 z-30 pointer-events-none flex transition-opacity duration-500"
+      style={{ opacity }}
+    >
+      {/* Left zone */}
+      <div className="flex-1 flex items-center justify-center border-r border-green-500/30 bg-green-500/10">
+        <div className="text-center">
+          <span className="text-4xl">👈</span>
+          <p className="text-green-400 text-sm font-bold mt-1">LEFT</p>
+        </div>
+      </div>
+
+      {/* Middle zone */}
+      <div className="flex-1 flex items-center justify-center bg-cyan-500/10">
+        <div className="text-center">
+          <span className="text-4xl">👆</span>
+          <p className="text-cyan-400 text-sm font-bold mt-1">JUMP</p>
+          <p className="text-gray-400 text-xs mt-1">Swipe ↓ = Slide</p>
+        </div>
+      </div>
+
+      {/* Right zone */}
+      <div className="flex-1 flex items-center justify-center border-l border-green-500/30 bg-green-500/10">
+        <div className="text-center">
+          <span className="text-4xl">👉</span>
+          <p className="text-green-400 text-sm font-bold mt-1">RIGHT</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Loading fallback
 function LoadingFallback() {
   return (
@@ -156,8 +221,8 @@ export function DashTrialsGame() {
 
       {/* UI Overlays */}
       <GameHUD />
-      <ControlPad />
       <AudioManager />
+      <TouchZoneHint />
       <CountdownOverlay />
       <MenuOverlay />
       <ResultOverlay />

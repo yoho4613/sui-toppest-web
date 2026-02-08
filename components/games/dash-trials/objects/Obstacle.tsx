@@ -5,7 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '../hooks/useGameStore';
 
-const LANE_WIDTH = 3;
+const LANE_WIDTH = 2.5;
 
 export type ObstacleType = 'low' | 'high' | 'side-left' | 'side-right' | 'side-center' | 'double-lane' | 'moving';
 

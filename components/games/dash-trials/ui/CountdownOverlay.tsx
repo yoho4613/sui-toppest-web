@@ -196,30 +196,6 @@ export function MenuOverlay() {
           </div>
         )}
 
-        {/* $CLUB Reward Info */}
-        <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl p-4 mb-4">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <span className="text-2xl">🏆</span>
-            <span className="text-purple-400 font-bold">$CLUB Rewards</span>
-          </div>
-          <p className="text-white text-lg font-bold">100m = 1 CLUB</p>
-          <p className="text-gray-400 text-xs mt-1">거리에 비례하여 $CLUB 획득!</p>
-          <div className="flex items-center justify-center gap-4 mt-3 text-xs">
-            <div className="text-center">
-              <p className="text-gray-500">500m</p>
-              <p className="text-purple-400 font-bold">5</p>
-            </div>
-            <div className="text-center">
-              <p className="text-gray-500">1000m</p>
-              <p className="text-purple-400 font-bold">10</p>
-            </div>
-            <div className="text-center">
-              <p className="text-gray-500">2000m</p>
-              <p className="text-purple-400 font-bold">20</p>
-            </div>
-          </div>
-        </div>
-
         {/* Difficulty Info */}
         <div className="bg-white/5 rounded-xl p-4 mb-6">
           <p className="font-bold text-white mb-3">Difficulty Zones</p>

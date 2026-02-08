@@ -5,7 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '../hooks/useGameStore';
 
-const LANE_WIDTH = 3;
+const LANE_WIDTH = 2.5;
 const LANE_TRANSITION_SPEED = 15;
 
 // Color palette - High contrast for visibility against dark map

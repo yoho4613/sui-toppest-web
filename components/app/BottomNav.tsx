@@ -63,12 +63,18 @@ const navItems: NavItem[] = [
 export function BottomNav() {
   const pathname = usePathname();
 
+  // Hide BottomNav when playing games (dash-trials, etc.)
+  const isGamePage = pathname.startsWith('/play/game/dash-trials');
+
   const isActive = (href: string) => {
     if (href === '/play') {
       return pathname === '/play';
     }
     return pathname.startsWith(href);
   };
+
+  // Don't render when on game pages
+  if (isGamePage) return null;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 flex justify-center pb-6 px-4 z-50 pointer-events-none safe-bottom">

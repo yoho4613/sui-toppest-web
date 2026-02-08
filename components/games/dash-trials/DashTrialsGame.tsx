@@ -60,14 +60,14 @@ function ResponsiveCamera() {
 
   useEffect(() => {
     const updateFov = () => {
-      // Wider FOV on mobile (portrait) for better lane visibility
+      // Wider FOV on mobile for better lane visibility
       const isMobile = window.innerWidth < 768;
       const isPortrait = window.innerHeight > window.innerWidth;
 
       if (isMobile && isPortrait) {
-        setFov(75); // Wider FOV for mobile portrait
+        setFov(85); // Much wider FOV for mobile portrait - prevent player cutoff
       } else if (isMobile) {
-        setFov(65); // Slightly wider for mobile landscape
+        setFov(75); // Wider for mobile landscape
       } else {
         setFov(60); // Desktop default
       }

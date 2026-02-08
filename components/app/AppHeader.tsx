@@ -6,6 +6,7 @@ import { mistToSui } from '@/lib/sui-utils';
 import { useEffect, useState } from 'react';
 import { useSuiClient } from '@mysten/dapp-kit';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 const PACKAGE_ID = '0x5cbe88ff66b4772358bcda0e509b955d3c51d05f956343253f8d780a5361c661';
 const LUCK_COIN_TYPE = `${PACKAGE_ID}::luck_token::LUCK_TOKEN`;
@@ -20,6 +21,7 @@ function formatBalance(mist: bigint | string): string {
 }
 
 export function AppHeader() {
+  const pathname = usePathname();
   const client = useSuiClient();
   const { isConnected: isWalletConnected, address: walletAddress, getBalance, getTokenBalance } = useSuiWallet();
   const { isAuthenticated: isZkLoginAuth, address: zkAddress, userInfo } = useZkLogin();
@@ -29,6 +31,10 @@ export function AppHeader() {
 
   const isConnected = isWalletConnected || isZkLoginAuth;
   const address = walletAddress || zkAddress;
+
+  // Hide header when playing games (dash-trials, etc.)
+  const isGamePage = pathname.startsWith('/play/game/dash-trials');
+  if (isGamePage) return null;
 
   useEffect(() => {
     async function fetchBalances() {

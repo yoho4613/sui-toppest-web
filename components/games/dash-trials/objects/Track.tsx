@@ -6,8 +6,8 @@ import * as THREE from 'three';
 import { useGameStore } from '../hooks/useGameStore';
 
 const TRACK_LENGTH = 120; // Extended to cover camera area (camera at z=8)
-const TRACK_WIDTH = 12;
-const LANE_WIDTH = 3;
+const TRACK_WIDTH = 10;  // Narrower for mobile visibility
+const LANE_WIDTH = 2.5;  // Reduced for mobile - prevents player cutoff
 const SEGMENT_COUNT = 12;
 const WALL_HEIGHT = 4;
 

@@ -54,6 +54,40 @@ function GameLoop() {
   return null;
 }
 
+// Responsive camera component
+function ResponsiveCamera() {
+  const [fov, setFov] = useState(60);
+
+  useEffect(() => {
+    const updateFov = () => {
+      // Wider FOV on mobile (portrait) for better lane visibility
+      const isMobile = window.innerWidth < 768;
+      const isPortrait = window.innerHeight > window.innerWidth;
+
+      if (isMobile && isPortrait) {
+        setFov(75); // Wider FOV for mobile portrait
+      } else if (isMobile) {
+        setFov(65); // Slightly wider for mobile landscape
+      } else {
+        setFov(60); // Desktop default
+      }
+    };
+
+    updateFov();
+    window.addEventListener('resize', updateFov);
+    return () => window.removeEventListener('resize', updateFov);
+  }, []);
+
+  return (
+    <PerspectiveCamera
+      makeDefault
+      position={[0, 4, 8]}
+      rotation={[-0.3, 0, 0]}
+      fov={fov}
+    />
+  );
+}
+
 // Game scene with 3D elements
 function GameScene() {
   const status = useGameStore((state) => state.status);
@@ -62,13 +96,8 @@ function GameScene() {
     <>
       <Environment />
 
-      {/* Camera */}
-      <PerspectiveCamera
-        makeDefault
-        position={[0, 4, 8]}
-        rotation={[-0.3, 0, 0]}
-        fov={60}
-      />
+      {/* Responsive Camera */}
+      <ResponsiveCamera />
 
       {/* Game elements */}
       <Physics gravity={[0, -30, 0]} paused={status !== 'playing'}>
@@ -153,25 +182,25 @@ function TouchZoneHint() {
       {/* Left zone */}
       <div className="flex-1 flex items-center justify-center border-r border-green-500/30 bg-green-500/10">
         <div className="text-center">
-          <span className="text-4xl">👈</span>
-          <p className="text-green-400 text-sm font-bold mt-1">LEFT</p>
+          <span className="text-2xl sm:text-4xl">👈</span>
+          <p className="text-green-400 text-xs sm:text-sm font-bold mt-1">LEFT</p>
         </div>
       </div>
 
       {/* Middle zone */}
       <div className="flex-1 flex items-center justify-center bg-cyan-500/10">
         <div className="text-center">
-          <span className="text-4xl">👆</span>
-          <p className="text-cyan-400 text-sm font-bold mt-1">JUMP</p>
-          <p className="text-gray-400 text-xs mt-1">Swipe ↓ = Slide</p>
+          <span className="text-2xl sm:text-4xl">👆</span>
+          <p className="text-cyan-400 text-xs sm:text-sm font-bold mt-1">JUMP</p>
+          <p className="text-blue-400 text-[10px] sm:text-xs mt-1 bg-blue-500/20 px-2 py-0.5 rounded">↓ Swipe = Slide</p>
         </div>
       </div>
 
       {/* Right zone */}
       <div className="flex-1 flex items-center justify-center border-l border-green-500/30 bg-green-500/10">
         <div className="text-center">
-          <span className="text-4xl">👉</span>
-          <p className="text-green-400 text-sm font-bold mt-1">RIGHT</p>
+          <span className="text-2xl sm:text-4xl">👉</span>
+          <p className="text-green-400 text-xs sm:text-sm font-bold mt-1">RIGHT</p>
         </div>
       </div>
     </div>

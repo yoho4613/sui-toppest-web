@@ -193,6 +193,7 @@ export function MenuOverlay() {
           {/* Mobile Touch Controls */}
           <div className="mb-3">
             <p className="text-cyan-400 text-xs font-semibold mb-2">📱 Touch</p>
+            {/* Tap zones */}
             <div className="flex items-center justify-center gap-1 mb-2">
               <div className="flex-1 bg-green-500/20 border border-green-500/30 rounded-lg py-2 text-center text-green-400 text-xs">
                 ← Left
@@ -204,7 +205,17 @@ export function MenuOverlay() {
                 Right →
               </div>
             </div>
-            <p className="text-gray-500 text-xs text-center">Swipe ↑ Jump · Swipe ↓ Slide</p>
+            {/* Swipe gestures - more visible */}
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <div className="flex items-center gap-1 bg-cyan-500/10 border border-cyan-500/20 rounded-lg px-3 py-1.5">
+                <span className="text-cyan-400 text-sm">↑</span>
+                <span className="text-gray-400 text-xs">Swipe Jump</span>
+              </div>
+              <div className="flex items-center gap-1 bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-1.5">
+                <span className="text-blue-400 text-sm">↓</span>
+                <span className="text-gray-400 text-xs">Swipe Slide</span>
+              </div>
+            </div>
           </div>
 
           {/* Keyboard Controls */}

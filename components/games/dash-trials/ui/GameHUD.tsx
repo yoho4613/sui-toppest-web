@@ -53,37 +53,70 @@ export function GameHUD() {
   };
 
   return (
-    <div className="absolute inset-x-0 top-0 p-4 pointer-events-none">
-      {/* Top bar */}
-      <div className="flex justify-between items-start mb-3">
-        {/* Distance & Time */}
-        <div className="bg-black/60 rounded-lg px-4 py-2 backdrop-blur-sm">
-          <p className="text-cyan-400 text-xs">DISTANCE</p>
-          <p className="text-white text-2xl font-mono font-bold">
+    <div className="absolute inset-x-0 top-0 p-2 sm:p-4 pointer-events-none">
+      {/* Top bar - compact for mobile */}
+      <div className="flex justify-between items-start gap-2 mb-2">
+        {/* Distance & Time - compact */}
+        <div className="bg-black/70 rounded-lg px-2 sm:px-3 py-1.5 backdrop-blur-sm">
+          <p className="text-cyan-400 text-[10px] sm:text-xs leading-tight">DISTANCE</p>
+          <p className="text-white text-lg sm:text-xl font-mono font-bold leading-tight">
             {Math.floor(distance)}m
           </p>
-          <p className="text-gray-400 text-xs">{formatTime(elapsedTime)}</p>
+          <p className="text-gray-400 text-[10px] sm:text-xs">{formatTime(elapsedTime)}</p>
         </div>
 
-        {/* Stats */}
-        <div className="flex gap-2">
-          {/* Difficulty badge */}
-          <div className={`rounded-lg px-3 py-2 backdrop-blur-sm ${getDifficultyColor()}`}>
-            <p className="text-xs font-bold uppercase">
-              {difficulty}
+        {/* Energy gauge - moved to top center for mobile */}
+        <div className="flex-1 max-w-[140px] sm:max-w-[180px] bg-black/70 rounded-lg px-2 py-1.5 backdrop-blur-sm">
+          <div className="flex justify-between items-center mb-0.5">
+            <span className={`text-[10px] sm:text-xs font-bold ${getEnergyTextColor()}`}>
+              {isFeverMode ? 'FEVER!' : 'ENERGY'}
+            </span>
+            <div className="flex items-center gap-1">
+              {/* Consecutive coins indicator - smaller */}
+              {consecutiveCoins > 0 && !isFeverMode && (
+                <div className="flex gap-0.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        i < consecutiveCoins ? 'bg-yellow-400' : 'bg-gray-600'
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+              <span className="text-white text-[10px] sm:text-xs">{Math.floor(energy)}%</span>
+            </div>
+          </div>
+          <div className="bg-gray-800 rounded-full h-2 overflow-hidden">
+            <div
+              className={`h-full transition-all duration-100 bg-gradient-to-r ${getEnergyColor()} ${
+                isFeverMode || energyPercent <= 30 ? 'animate-pulse' : ''
+              }`}
+              style={{ width: `${energyPercent}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Stats - compact */}
+        <div className="flex gap-1 sm:gap-2">
+          {/* Difficulty badge - smaller */}
+          <div className={`rounded-lg px-2 py-1.5 backdrop-blur-sm ${getDifficultyColor()}`}>
+            <p className="text-[10px] sm:text-xs font-bold uppercase leading-tight">
+              {difficulty.slice(0, 4)}
             </p>
           </div>
 
-          {/* Coins */}
-          <div className="bg-black/60 rounded-lg px-3 py-2 backdrop-blur-sm">
-            <p className="text-yellow-400 text-xs">COINS</p>
-            <p className="text-white text-xl font-bold text-center">{coinCount}</p>
+          {/* Coins - smaller */}
+          <div className="bg-black/70 rounded-lg px-2 py-1.5 backdrop-blur-sm">
+            <p className="text-yellow-400 text-[10px] leading-tight">🪙</p>
+            <p className="text-white text-sm sm:text-base font-bold text-center leading-tight">{coinCount}</p>
           </div>
         </div>
       </div>
 
-      {/* Speed indicator */}
-      <div className="flex items-center gap-2 mb-4">
+      {/* Speed indicator - thinner */}
+      <div className="flex items-center gap-1 sm:gap-2">
         <div className="flex-1 bg-black/40 rounded-full h-1 backdrop-blur-sm overflow-hidden">
           <div
             className={`h-full transition-all duration-300 ${
@@ -92,52 +125,21 @@ export function GameHUD() {
             style={{ width: `${Math.min(100, (speed / 30) * 100)}%` }}
           />
         </div>
-        <span className="text-xs text-gray-400">{speed.toFixed(0)} km/h</span>
+        <span className="text-[10px] sm:text-xs text-gray-400 min-w-[45px] text-right">{speed.toFixed(0)} km/h</span>
       </div>
 
-      {/* Energy gauge */}
-      <div className="absolute bottom-20 left-4 right-4">
-        <div className="bg-black/60 rounded-lg p-3 backdrop-blur-sm">
-          <div className="flex justify-between items-center mb-1">
-            <span className={`text-sm font-bold ${getEnergyTextColor()}`}>
-              {isFeverMode ? 'FEVER MODE!' : 'ENERGY'}
-            </span>
-            <div className="flex items-center gap-2">
-              {/* Consecutive coins indicator */}
-              {consecutiveCoins > 0 && !isFeverMode && (
-                <div className="flex gap-0.5">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className={`w-2 h-2 rounded-full ${
-                        i < consecutiveCoins ? 'bg-yellow-400' : 'bg-gray-600'
-                      }`}
-                    />
-                  ))}
-                </div>
-              )}
-              <span className="text-white text-sm">{Math.floor(energy)}%</span>
-            </div>
-          </div>
-          <div className="bg-gray-800 rounded-full h-3 overflow-hidden">
-            <div
-              className={`h-full transition-all duration-100 bg-gradient-to-r ${getEnergyColor()} ${
-                isFeverMode || energyPercent <= 30 ? 'animate-pulse' : ''
-              }`}
-              style={{ width: `${energyPercent}%` }}
-            />
-          </div>
-          {energyPercent <= 30 && !isFeverMode && (
-            <p className="text-red-400 text-xs mt-1 text-center animate-pulse">
-              Low Energy! Collect coins!
-            </p>
-          )}
+      {/* Low energy warning - floating at bottom but above touch zone */}
+      {energyPercent <= 30 && !isFeverMode && (
+        <div className="absolute bottom-32 sm:bottom-24 left-1/2 -translate-x-1/2">
+          <p className="text-red-400 text-xs sm:text-sm font-bold bg-black/70 px-3 py-1 rounded-full animate-pulse">
+            ⚠️ Low Energy!
+          </p>
         </div>
-      </div>
+      )}
 
       {/* Fever overlay */}
       {isFeverMode && (
-        <div className="absolute inset-0 pointer-events-none border-4 border-purple-500/50 animate-pulse" />
+        <div className="absolute inset-0 pointer-events-none border-2 sm:border-4 border-purple-500/50 animate-pulse" />
       )}
     </div>
   );

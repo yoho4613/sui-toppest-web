@@ -182,3 +182,27 @@ export async function getActiveSeason(): Promise<{ id: number } | null> {
 
   return data;
 }
+
+/**
+ * Get user's total CLUB rewards earned across all games
+ */
+export async function getUserTotalClub(
+  walletAddress: string
+): Promise<number> {
+  if (!supabaseAdmin) {
+    return 0;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('game_records')
+    .select('club_earned')
+    .eq('wallet_address', walletAddress);
+
+  if (error || !data) {
+    console.error('Get total club error:', error);
+    return 0;
+  }
+
+  // Sum all club_earned values
+  return data.reduce((total, record) => total + (record.club_earned || 0), 0);
+}

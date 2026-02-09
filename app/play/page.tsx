@@ -1,13 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
 import { useSuiWallet } from '@/hooks/useSuiWallet';
 import { useZkLogin } from '@/hooks/useZkLogin';
-import { useGameAPI } from '@/hooks/useGameAPI';
+import { useAppStore } from '@/stores/useAppStore';
 import { LoginScreen } from '@/components/app';
-
-const GAME_TYPE = 'dash-trials';
 
 // Game data - only active games
 const GAMES = [
@@ -23,33 +20,8 @@ const GAMES = [
 
 // Game Lobby Component (shown when logged in)
 function GameLobby() {
-  const { address: walletAddress } = useSuiWallet();
-  const { address: zkAddress } = useZkLogin();
-  const address = walletAddress || zkAddress;
-
-  const { checkTickets, isLoadingTickets } = useGameAPI();
-  const [ticketStatus, setTicketStatus] = useState<{
-    dailyTickets: number;
-    maxDailyTickets: number;
-    starTickets: number;
-    totalTickets: number;
-  } | null>(null);
-
-  // Fetch ticket status on mount
-  useEffect(() => {
-    if (address) {
-      checkTickets(address, GAME_TYPE).then((result) => {
-        if (result) {
-          setTicketStatus({
-            dailyTickets: result.dailyTickets,
-            maxDailyTickets: result.maxDailyTickets,
-            starTickets: result.starTickets,
-            totalTickets: result.totalTickets,
-          });
-        }
-      });
-    }
-  }, [address, checkTickets]);
+  // Use global store - data already loaded in layout
+  const { ticketData, isInitializing } = useAppStore();
 
   return (
     <div className="flex flex-col gap-6">
@@ -70,22 +42,22 @@ function GameLobby() {
 
           {/* Ticket Count */}
           <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 rounded-xl px-3 py-2">
-            {isLoadingTickets ? (
+            {isInitializing ? (
               <div className="flex items-center justify-center">
                 <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
               </div>
-            ) : ticketStatus ? (
+            ) : ticketData ? (
               <div className="flex flex-col gap-1">
                 {/* Daily Tickets */}
                 <div className="flex items-center gap-1.5">
                   <span className="text-sm">🎟️</span>
-                  <span className="text-white font-bold text-sm">{ticketStatus.dailyTickets}</span>
-                  <span className="text-gray-400 text-xs">/{ticketStatus.maxDailyTickets}</span>
+                  <span className="text-white font-bold text-sm">{ticketData.dailyTickets}</span>
+                  <span className="text-gray-400 text-xs">/{ticketData.maxDailyTickets}</span>
                 </div>
                 {/* Star Tickets */}
                 <div className="flex items-center gap-1.5">
                   <span className="text-sm">⭐</span>
-                  <span className="text-yellow-400 font-bold text-sm">{ticketStatus.starTickets}</span>
+                  <span className="text-yellow-400 font-bold text-sm">{ticketData.starTickets}</span>
                 </div>
               </div>
             ) : (
@@ -94,6 +66,36 @@ function GameLobby() {
                 <span className="text-gray-400 text-sm">3/3</span>
               </div>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* CLUB Reward Balance */}
+      <div className="px-5">
+        <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-xl p-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                {/* Club (Clover) Card Suit Icon */}
+                <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2a4 4 0 0 0-4 4c0 1.16.5 2.21 1.29 2.94-.47.36-.85.84-1.1 1.4A4 4 0 0 0 2 14a4 4 0 0 0 4 4c.74 0 1.43-.2 2.03-.55.03.18.05.36.05.55 0 .34-.03.67-.09 1H10a2 2 0 0 0 2 2 2 2 0 0 0 2-2h1.91c-.06-.33-.09-.66-.09-1 0-.19.02-.37.05-.55.6.35 1.29.55 2.03.55a4 4 0 0 0 4-4 4 4 0 0 0-6.19-3.34c-.25-.56-.63-1.04-1.1-1.4A3.97 3.97 0 0 0 16 6a4 4 0 0 0-4-4z"/>
+                </svg>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">$CLUB Rewards</p>
+                <p className="text-white font-bold">
+                  {isInitializing ? (
+                    <span className="inline-block w-12 h-4 bg-white/10 rounded animate-pulse" />
+                  ) : (
+                    <>{(ticketData?.clubBalance ?? 0).toLocaleString()} CLUB</>
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wide">Earned from games</p>
+              <p className="text-xs text-purple-400">Play more to earn!</p>
+            </div>
           </div>
         </div>
       </div>

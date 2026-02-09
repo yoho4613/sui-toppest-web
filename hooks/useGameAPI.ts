@@ -13,6 +13,8 @@ export interface TicketStatus {
   starTickets: number;
   // Total
   totalTickets: number;
+  // $CLUB balance
+  clubBalance: number;
   // Legacy fields for compatibility
   remainingTickets: number;
   maxTickets: number;
@@ -91,6 +93,7 @@ export function useGameAPI() {
           maxDailyTickets: 3,
           starTickets: 0,
           totalTickets: 3,
+          clubBalance: 0,
           remainingTickets: 3,
           maxTickets: 3,
           ticketsUsed: 0,
@@ -109,6 +112,7 @@ export function useGameAPI() {
         maxDailyTickets: 3,
         starTickets: 0,
         totalTickets: 3,
+        clubBalance: 0,
         remainingTickets: 3,
         maxTickets: 3,
         ticketsUsed: 0,

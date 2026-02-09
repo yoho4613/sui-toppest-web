@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useSuiWallet } from '@/hooks/useSuiWallet';
 import { useZkLogin } from '@/hooks/useZkLogin';
-import { useProfile } from '@/hooks/useProfile';
+import { useAppStore } from '@/stores/useAppStore';
 import { AppHeader, BottomNav } from '@/components/app';
 
 export default function PlayLayout({
@@ -18,27 +18,59 @@ export default function PlayLayout({
   const address = walletAddress || zkAddress;
   const authMethod = isWalletConnected ? 'wallet' : isZkLoginAuth ? 'zklogin' : null;
 
-  // Auto-register user to DB
-  const { createOrSyncProfile, profile } = useProfile({
-    walletAddress: address,
-    authMethod,
-    googleInfo: userInfo
-      ? {
-          email: userInfo.email,
-          name: userInfo.name,
-          picture: userInfo.picture,
-          sub: userInfo.sub,
-        }
-      : undefined,
-  });
+  // Global app store
+  const { init, isInitialized, reset, profile } = useAppStore();
 
-  // Auto-register on first connection
+  // Initialize app data when connected
   useEffect(() => {
-    if (isConnected && authMethod && !profile) {
+    if (isConnected && address && !isInitialized) {
+      // For zkLogin, wait until userInfo is available before init
       if (authMethod === 'zklogin' && !userInfo) return;
-      createOrSyncProfile();
+      init(address);
     }
-  }, [isConnected, authMethod, userInfo, profile, createOrSyncProfile]);
+  }, [isConnected, address, authMethod, userInfo, isInitialized, init]);
+
+  // Auto-register profile if not exists (after init completes)
+  useEffect(() => {
+    async function ensureProfile() {
+      if (!isInitialized || !isConnected || !address || !authMethod) return;
+      if (profile) return; // Already has profile
+
+      // For zkLogin, wait for userInfo
+      if (authMethod === 'zklogin' && !userInfo) return;
+
+      try {
+        const body: Record<string, unknown> = {
+          wallet_address: address,
+          auth_method: authMethod,
+        };
+
+        if (authMethod === 'zklogin' && userInfo) {
+          body.google_email = userInfo.email;
+          body.google_name = userInfo.name;
+          body.google_picture = userInfo.picture;
+          body.google_sub = userInfo.sub;
+        }
+
+        await fetch('/api/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      } catch (error) {
+        console.error('Failed to create profile:', error);
+      }
+    }
+
+    ensureProfile();
+  }, [isInitialized, isConnected, address, authMethod, userInfo, profile]);
+
+  // Reset store on disconnect
+  useEffect(() => {
+    if (!isConnected) {
+      reset();
+    }
+  }, [isConnected, reset]);
 
   return (
     <div className="min-h-screen bg-[#0F1419] relative">

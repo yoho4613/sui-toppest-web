@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { checkTicketStatus, useTicket } from '@/lib/db';
+import { checkTicketStatus, useTicket, getUserTotalClub } from '@/lib/db';
 
 // GET /api/game/ticket?address=0x...&game_type=dash-trials
 export async function GET(request: NextRequest) {
@@ -22,9 +22,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const status = await checkTicketStatus(address, gameType);
+    const [status, totalClub] = await Promise.all([
+      checkTicketStatus(address, gameType),
+      getUserTotalClub(address),
+    ]);
 
-    return NextResponse.json(status);
+    return NextResponse.json({
+      ...status,
+      clubBalance: totalClub,
+    });
   } catch (error) {
     console.error('Ticket check API error:', error);
     return NextResponse.json(

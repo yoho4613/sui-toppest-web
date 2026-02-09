@@ -9,6 +9,7 @@ export {
   getUserHighScore,
   getUserIdByWallet,
   getActiveSeason,
+  getUserTotalClub,
   type CreateGameRecordInput,
   type GameRecordResult,
 } from './game-records';

@@ -4,6 +4,12 @@
 -- Supabase SQL Editor에서 실행하세요
 -- =============================================
 
+-- 0. 기존 뷰 삭제 (테이블로 대체)
+-- =============================================
+-- 기존 leaderboard_view나 leaderboard 뷰가 있으면 삭제
+DROP VIEW IF EXISTS leaderboard_view CASCADE;
+DROP VIEW IF EXISTS leaderboard CASCADE;
+
 -- 1. 리더보드 테이블 생성
 -- =============================================
 CREATE TABLE IF NOT EXISTS leaderboard (

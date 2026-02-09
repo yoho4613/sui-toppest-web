@@ -133,7 +133,57 @@ export default function RankingPage() {
         <EmptyState />
       ) : (
         <>
-          {/* Top 3 Podium */}
+          {/* Small Leaderboard (1-2 players) - Show simple list instead of podium */}
+          {leaderboard.length > 0 && leaderboard.length < 3 && (
+            <div className="bg-[#1A1F26] border border-white/10 rounded-2xl overflow-hidden">
+              {leaderboard.map((entry, index) => {
+                const isCurrentUser = address && entry.wallet_address === address;
+                const rankEmoji = entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : '';
+                return (
+                  <div
+                    key={entry.wallet_address}
+                    className={`flex items-center gap-3 p-4 ${
+                      index !== leaderboard.length - 1 ? 'border-b border-white/5' : ''
+                    } ${isCurrentUser ? 'bg-[#4DA2FF]/10' : ''}`}
+                  >
+                    {/* Rank */}
+                    <div className={`w-8 h-8 rounded-full ${getRankStyle(entry.rank)} flex items-center justify-center font-bold text-sm`}>
+                      {rankEmoji || entry.rank}
+                    </div>
+
+                    {/* Avatar */}
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#4DA2FF] to-purple-500 p-[1px]">
+                      <div className="w-full h-full rounded-full bg-[#1A1F26] flex items-center justify-center overflow-hidden">
+                        {entry.avatar_url ? (
+                          <img src={entry.avatar_url} alt={entry.display_name} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-gray-400 text-xs font-bold">
+                            {entry.display_name.charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Name & Distance */}
+                    <div className="flex-1 min-w-0">
+                      <p className={`font-semibold truncate ${isCurrentUser ? 'text-[#4DA2FF]' : 'text-white'}`}>
+                        {entry.display_name}
+                        {isCurrentUser && <span className="text-xs ml-2">(You)</span>}
+                      </p>
+                      <p className="text-gray-400 text-xs">{entry.games_played} game{entry.games_played !== 1 ? 's' : ''}</p>
+                    </div>
+
+                    {/* Distance */}
+                    <div className="text-right">
+                      <p className="text-cyan-400 font-bold">{entry.distance.toLocaleString()}m</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Top 3 Podium (only when 3+ players) */}
           {leaderboard.length >= 3 && (
             <div className="flex items-end justify-center gap-3 py-4">
               {/* 2nd Place */}

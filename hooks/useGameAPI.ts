@@ -226,12 +226,15 @@ export function useGameAPI() {
       setIsLoadingLeaderboard(true);
       setError(null);
 
-      let url = `/api/game/leaderboard?game_type=${gameType}&filter=${filter}`;
+      // Add cache-busting timestamp to ensure fresh data after game
+      let url = `/api/game/leaderboard?game_type=${gameType}&filter=${filter}&_t=${Date.now()}`;
       if (userAddress) {
         url += `&address=${userAddress}`;
       }
 
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        cache: 'no-store',
+      });
 
       if (!response.ok) {
         const data = await response.json();

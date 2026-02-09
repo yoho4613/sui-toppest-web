@@ -7,6 +7,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getLeaderboard, type TimeFilter } from '@/lib/db';
 
+// Disable Next.js caching for this route - always fetch fresh data
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // GET /api/game/leaderboard?game_type=dash-trials&filter=weekly&limit=50
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +22,14 @@ export async function GET(request: NextRequest) {
 
     const result = await getLeaderboard(gameType, filter, userAddress, limit);
 
-    return NextResponse.json(result);
+    // Disable caching to ensure fresh data after game completion
+    return NextResponse.json(result, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    });
   } catch (error) {
     console.error('Leaderboard API error:', error);
     return NextResponse.json(

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useGameStore } from '../hooks/useGameStore';
 import { useClubRewards } from '../hooks/useClubRewards';
 import { useGameAPI } from '@/hooks/useGameAPI';
@@ -55,6 +56,7 @@ export function CountdownOverlay() {
 }
 
 export function MenuOverlay() {
+  const router = useRouter();
   const status = useGameStore((state) => state.status);
   const highScore = useGameStore((state) => state.highScore);
 
@@ -277,15 +279,24 @@ export function MenuOverlay() {
 
         {/* Start button */}
         <button
-          onClick={handleStartGame}
-          disabled={!canPlay || isButtonLoading || isInitialLoading}
+          onClick={() => {
+            if (canPlay) {
+              handleStartGame();
+            } else if (!isInitialLoading) {
+              // No tickets - redirect to shop
+              router.push('/play/shop');
+            }
+          }}
+          disabled={isButtonLoading || isInitialLoading}
           className={`w-full py-4 px-8 rounded-xl text-white font-bold text-xl transition-transform ${
-            canPlay && !isButtonLoading && !isInitialLoading
-              ? 'bg-gradient-to-r from-green-500 to-cyan-500 hover:scale-105'
-              : 'bg-gray-600 cursor-not-allowed'
+            isButtonLoading || isInitialLoading
+              ? 'bg-gray-600 cursor-not-allowed'
+              : canPlay
+                ? 'bg-gradient-to-r from-green-500 to-cyan-500 hover:scale-105'
+                : 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:scale-105'
           }`}
         >
-          {isInitialLoading ? 'Loading...' : isButtonLoading ? 'Starting...' : canPlay ? 'START GAME' : 'NO TICKETS'}
+          {isInitialLoading ? 'Loading...' : isButtonLoading ? 'Starting...' : canPlay ? 'START GAME' : 'GET TICKETS →'}
         </button>
       </div>
     </div>
@@ -293,6 +304,7 @@ export function MenuOverlay() {
 }
 
 export function ResultOverlay() {
+  const router = useRouter();
   const status = useGameStore((state) => state.status);
   const distance = useGameStore((state) => state.distance);
   const elapsedTime = useGameStore((state) => state.elapsedTime);
@@ -559,15 +571,24 @@ export function ResultOverlay() {
             MENU
           </button>
           <button
-            onClick={handleRetry}
-            disabled={!canRetry || isLoading}
+            onClick={() => {
+              if (canRetry) {
+                handleRetry();
+              } else {
+                // No tickets - redirect to shop
+                router.push('/play/shop');
+              }
+            }}
+            disabled={isLoading}
             className={`flex-1 py-3 px-6 rounded-xl text-white font-bold transition-transform ${
-              canRetry && !isLoading
-                ? 'bg-gradient-to-r from-green-500 to-cyan-500 hover:scale-105'
-                : 'bg-gray-600 cursor-not-allowed'
+              isLoading
+                ? 'bg-gray-600 cursor-not-allowed'
+                : canRetry
+                  ? 'bg-gradient-to-r from-green-500 to-cyan-500 hover:scale-105'
+                  : 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:scale-105'
             }`}
           >
-            {isLoading ? '...' : canRetry ? 'RETRY' : 'NO TICKETS'}
+            {isLoading ? '...' : canRetry ? 'RETRY' : 'GET TICKETS →'}
           </button>
         </div>
       </div>

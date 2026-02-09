@@ -34,7 +34,6 @@ export function AppHeader() {
 
   // Hide header when playing games (dash-trials, etc.)
   const isGamePage = pathname.startsWith('/play/game/dash-trials');
-  if (isGamePage) return null;
 
   useEffect(() => {
     async function fetchBalances() {
@@ -73,6 +72,9 @@ export function AppHeader() {
 
   // Get avatar
   const avatar = userInfo?.picture || null;
+
+  // Hide on game pages (after all hooks)
+  if (isGamePage) return null;
 
   return (
     <header className="flex items-center justify-between px-5 pt-6 pb-4 sticky top-0 bg-[#0F1419]/90 backdrop-blur-lg z-40">

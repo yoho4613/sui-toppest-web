@@ -1,5 +1,8 @@
 /**
  * Leaderboard Database Queries
+ *
+ * Uses dedicated leaderboard table for fast ranking queries.
+ * The leaderboard table is updated on each game record insert.
  */
 
 import { supabaseAdmin } from '@/lib/supabase';
@@ -25,26 +28,69 @@ export interface LeaderboardResult {
 }
 
 /**
- * Get date filter based on time filter type
+ * Get score column based on time filter
  */
-function getDateFilter(filter: TimeFilter): string | null {
-  const now = new Date();
+function getScoreColumn(filter: TimeFilter): string {
+  switch (filter) {
+    case 'daily':
+      return 'daily_high_score';
+    case 'weekly':
+      return 'weekly_high_score';
+    case 'alltime':
+    default:
+      return 'high_score';
+  }
+}
 
-  if (filter === 'daily') {
-    return now.toISOString().split('T')[0]; // Today
-  } else if (filter === 'weekly') {
-    // Start of current week (Sunday)
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    startOfWeek.setHours(0, 0, 0, 0);
-    return startOfWeek.toISOString();
+/**
+ * Get distance column based on time filter
+ */
+function getDistanceColumn(filter: TimeFilter): string {
+  switch (filter) {
+    case 'daily':
+      return 'daily_high_distance';
+    case 'weekly':
+      return 'weekly_high_distance';
+    case 'alltime':
+    default:
+      return 'high_distance';
+  }
+}
+
+/**
+ * Update leaderboard after a game record is saved
+ * Calls the PostgreSQL function update_leaderboard()
+ */
+export async function updateLeaderboard(
+  walletAddress: string,
+  gameType: string,
+  score: number,
+  distance: number,
+  clubEarned: number
+): Promise<{ success: boolean; error?: string }> {
+  if (!supabaseAdmin) {
+    return { success: false, error: 'Database not configured' };
   }
 
-  return null; // All time
+  const { error } = await supabaseAdmin.rpc('update_leaderboard', {
+    p_wallet: walletAddress,
+    p_game_type: gameType,
+    p_score: score,
+    p_distance: distance,
+    p_club: clubEarned,
+  });
+
+  if (error) {
+    console.error('Update leaderboard error:', error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
 }
 
 /**
  * Fetch leaderboard data for a specific game
+ * Uses the dedicated leaderboard table for fast queries
  */
 export async function getLeaderboard(
   gameType: string,
@@ -64,87 +110,128 @@ export async function getLeaderboard(
     return emptyResult;
   }
 
-  const dateFilter = getDateFilter(filter);
+  const scoreColumn = getScoreColumn(filter);
+  const distanceColumn = getDistanceColumn(filter);
 
-  // Build query - use left join to include users without profiles
-  let query = supabaseAdmin
-    .from('game_records')
+  // Query leaderboard table with user profile join
+  // Select all score columns and filter in code for type safety
+  const { data: entries, error } = await supabaseAdmin
+    .from('leaderboard')
     .select(`
       wallet_address,
-      score,
-      distance,
-      played_at,
+      high_score,
+      high_distance,
+      weekly_high_score,
+      weekly_high_distance,
+      daily_high_score,
+      daily_high_distance,
+      games_played,
       user_profiles(nickname, avatar_url, google_name, google_picture)
     `)
     .eq('game_type', gameType)
-    .order('score', { ascending: false });
-
-  if (dateFilter) {
-    query = query.gte('played_at', dateFilter);
-  }
-
-  const { data: records, error } = await query;
+    .order(scoreColumn, { ascending: false })
+    .limit(limit * 2); // Fetch extra to filter out zero scores
 
   if (error) {
     console.error('Leaderboard fetch error:', error);
     return emptyResult;
   }
 
-  // Process records to get unique users with their high scores
-  const userHighScores = new Map<string, {
-    wallet_address: string;
-    high_score: number;
-    distance: number;
-    display_name: string;
-    avatar_url: string | null;
-    games_played: number;
-  }>();
+  // Filter and transform to LeaderboardEntry format
+  const getScore = (entry: any): number => {
+    switch (filter) {
+      case 'daily': return entry.daily_high_score || 0;
+      case 'weekly': return entry.weekly_high_score || 0;
+      default: return entry.high_score || 0;
+    }
+  };
 
-  records?.forEach((record: any) => {
-    const existing = userHighScores.get(record.wallet_address);
-    const profile = record.user_profiles;
+  const getDistance = (entry: any): number => {
+    switch (filter) {
+      case 'daily': return entry.daily_high_distance || 0;
+      case 'weekly': return entry.weekly_high_distance || 0;
+      default: return entry.high_distance || 0;
+    }
+  };
+
+  // Filter entries with score > 0 and limit
+  const filteredEntries = (entries || [])
+    .filter((entry: any) => getScore(entry) > 0)
+    .slice(0, limit);
+
+  const leaderboard: LeaderboardEntry[] = filteredEntries.map((entry: any, index: number) => {
+    const profile = entry.user_profiles;
     const displayName = profile?.nickname || profile?.google_name ||
-      `${record.wallet_address.slice(0, 6)}...${record.wallet_address.slice(-4)}`;
+      `${entry.wallet_address.slice(0, 6)}...${entry.wallet_address.slice(-4)}`;
     const avatarUrl = profile?.avatar_url || profile?.google_picture || null;
 
-    if (!existing || record.score > existing.high_score) {
-      userHighScores.set(record.wallet_address, {
-        wallet_address: record.wallet_address,
-        high_score: record.score,
-        distance: record.distance,
-        display_name: displayName,
-        avatar_url: avatarUrl,
-        games_played: existing ? existing.games_played + 1 : 1,
-      });
-    } else {
-      existing.games_played += 1;
-    }
+    return {
+      rank: index + 1,
+      wallet_address: entry.wallet_address,
+      high_score: getScore(entry),
+      distance: getDistance(entry),
+      display_name: displayName,
+      avatar_url: avatarUrl,
+      games_played: entry.games_played,
+    };
   });
 
-  // Convert to array and sort by high score
-  const sortedEntries = Array.from(userHighScores.values())
-    .sort((a, b) => b.high_score - a.high_score);
-
-  const leaderboard = sortedEntries
-    .slice(0, limit)
-    .map((entry, index) => ({
-      rank: index + 1,
-      ...entry,
-    }));
+  // Get total player count for this game (with score > 0)
+  const totalPlayers = filteredEntries.length;
 
   // Get user's rank if address provided
   let userRank: LeaderboardEntry | null = null;
   if (userAddress) {
-    const userIndex = sortedEntries
-      .findIndex((entry) => entry.wallet_address === userAddress);
+    // First check if user is in the top results
+    const userInList = leaderboard.find(e => e.wallet_address === userAddress);
+    if (userInList) {
+      userRank = userInList;
+    } else {
+      // Query user's specific rank
+      const { data: userData } = await supabaseAdmin
+        .from('leaderboard')
+        .select(`
+          wallet_address,
+          high_score,
+          high_distance,
+          weekly_high_score,
+          weekly_high_distance,
+          daily_high_score,
+          daily_high_distance,
+          games_played,
+          user_profiles(nickname, avatar_url, google_name, google_picture)
+        `)
+        .eq('game_type', gameType)
+        .eq('wallet_address', userAddress)
+        .single();
 
-    if (userIndex !== -1) {
-      const userData = userHighScores.get(userAddress);
       if (userData) {
-        userRank = {
-          rank: userIndex + 1,
-          ...userData,
-        };
+        const userScore = getScore(userData);
+        const userDistance = getDistance(userData);
+
+        if (userScore > 0) {
+          // Count how many users have higher scores to get rank
+          const { count: higherCount } = await supabaseAdmin
+            .from('leaderboard')
+            .select('*', { count: 'exact', head: true })
+            .eq('game_type', gameType)
+            .gt(scoreColumn, userScore);
+
+          const profile = userData.user_profiles as any;
+          const displayName = profile?.nickname || profile?.google_name ||
+            `${userData.wallet_address.slice(0, 6)}...${userData.wallet_address.slice(-4)}`;
+          const avatarUrl = profile?.avatar_url || profile?.google_picture || null;
+
+          userRank = {
+            rank: (higherCount || 0) + 1,
+            wallet_address: userData.wallet_address,
+            high_score: userScore,
+            distance: userDistance,
+            display_name: displayName,
+            avatar_url: avatarUrl,
+            games_played: userData.games_played,
+          };
+        }
       }
     }
   }
@@ -154,7 +241,7 @@ export async function getLeaderboard(
     userRank,
     filter,
     gameType,
-    totalPlayers: userHighScores.size,
+    totalPlayers,
   };
 }
 
@@ -177,6 +264,6 @@ export async function getUserRank(
   walletAddress: string,
   filter: TimeFilter = 'alltime'
 ): Promise<LeaderboardEntry | null> {
-  const result = await getLeaderboard(gameType, filter, walletAddress, 1000);
+  const result = await getLeaderboard(gameType, filter, walletAddress, 1);
   return result.userRank;
 }

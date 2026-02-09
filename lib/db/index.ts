@@ -30,6 +30,7 @@ export {
   getLeaderboard,
   getTopPlayers,
   getUserRank,
+  updateLeaderboard,
   type TimeFilter,
   type LeaderboardEntry,
   type LeaderboardResult,

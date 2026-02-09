@@ -11,6 +11,7 @@ import {
   getGameRecordsByUser,
   getUserIdByWallet,
   getActiveSeason,
+  updateLeaderboard,
 } from '@/lib/db';
 import { calculateClubRewards } from '@/lib/rewards/club-rewards';
 
@@ -82,6 +83,17 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Update leaderboard (async, don't block response)
+    updateLeaderboard(
+      wallet_address,
+      game_type,
+      score || 0,
+      distance || 0,
+      clubEarned
+    ).catch((err) => {
+      console.error('Failed to update leaderboard:', err);
+    });
 
     return NextResponse.json({
       success: true,

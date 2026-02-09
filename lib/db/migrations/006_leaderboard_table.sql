@@ -41,7 +41,13 @@ CREATE TABLE IF NOT EXISTS leaderboard (
   updated_at TIMESTAMPTZ DEFAULT NOW(),
 
   -- 유니크 제약 (유저당 게임타입별 1개 레코드)
-  UNIQUE(wallet_address, game_type)
+  UNIQUE(wallet_address, game_type),
+
+  -- 외래 키: user_profiles와 연결 (PostgREST JOIN을 위해 필요)
+  CONSTRAINT fk_leaderboard_user_profiles
+    FOREIGN KEY (wallet_address)
+    REFERENCES user_profiles(wallet_address)
+    ON DELETE CASCADE
 );
 
 -- 2. 인덱스 생성

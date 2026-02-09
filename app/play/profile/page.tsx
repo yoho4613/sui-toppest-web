@@ -8,7 +8,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSuiClient } from '@mysten/dapp-kit';
 import { useRouter } from 'next/navigation';
 
-const PACKAGE_ID = '0x5cbe88ff66b4772358bcda0e509b955d3c51d05f956343253f8d780a5361c661';
+const PACKAGE_ID = process.env.NEXT_PUBLIC_SUI_LUCK_PACKAGE_ID || '0x7795285cd9a37afc24140e240d3fa0c0098f22a63fd93ca1adc3a50b5c036040';
 const LUCK_COIN_TYPE = `${PACKAGE_ID}::luck_token::LUCK_TOKEN`;
 
 export default function ProfilePage() {

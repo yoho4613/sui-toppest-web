@@ -1,32 +1,47 @@
 /**
  * $LUCK Payment Verification API Route
- * Verifies that a $LUCK token transfer was successful and grants spins
+ * Verifies that a $LUCK token transfer was successful and grants rewards
  *
  * Flow:
  * 1. Client sends transaction digest after wallet execution
  * 2. Server verifies the $LUCK transfer on-chain
- * 3. Server grants spins to the user
+ * 3. Server completes purchase and grants rewards atomically
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { SuiClient, getFullnodeUrl } from '@mysten/sui/client';
+import { completePurchase, failPurchase, getPurchaseById } from '@/lib/db';
 
 const NETWORK = (process.env.SUI_NETWORK || process.env.NEXT_PUBLIC_SUI_NETWORK || 'devnet') as 'devnet' | 'testnet' | 'mainnet';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { digest, userId, packageId, expectedAmount } = body as {
+    const { digest, purchaseId } = body as {
       digest: string;
-      userId: string;
-      packageId: string;
-      expectedAmount: string;
+      purchaseId: string;
     };
 
     // Validate input
-    if (!digest || !userId || !packageId || !expectedAmount) {
+    if (!digest || !purchaseId) {
       return NextResponse.json(
-        { error: 'Missing required fields: digest, userId, packageId, expectedAmount' },
+        { error: 'Missing required fields: digest, purchaseId' },
+        { status: 400 }
+      );
+    }
+
+    // Get purchase record
+    const purchase = await getPurchaseById(purchaseId);
+    if (!purchase) {
+      return NextResponse.json(
+        { error: 'Purchase not found' },
+        { status: 404 }
+      );
+    }
+
+    if (purchase.status !== 'pending') {
+      return NextResponse.json(
+        { error: `Purchase already ${purchase.status}` },
         { status: 400 }
       );
     }
@@ -56,6 +71,7 @@ export async function POST(request: NextRequest) {
 
     // Check transaction was successful
     if (txResponse.effects?.status?.status !== 'success') {
+      await failPurchase(purchaseId, 'Transaction failed on-chain');
       return NextResponse.json(
         { error: 'Transaction failed on-chain' },
         { status: 400 }
@@ -74,6 +90,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!recipientChange) {
+      await failPurchase(purchaseId, 'No $LUCK transfer to recipient found');
       return NextResponse.json(
         { error: 'No $LUCK transfer to recipient found in transaction' },
         { status: 400 }
@@ -81,14 +98,15 @@ export async function POST(request: NextRequest) {
     }
 
     const actualAmount = BigInt(recipientChange.amount);
-    const expectedAmountBigInt = BigInt(expectedAmount);
+    const expectedAmountBigInt = BigInt(purchase.amount_paid);
 
     // Allow 1% tolerance for rounding
     const minAmount = expectedAmountBigInt - (expectedAmountBigInt / 100n);
 
     if (actualAmount < minAmount) {
+      await failPurchase(purchaseId, `Insufficient amount: ${actualAmount.toString()}`);
       return NextResponse.json(
-        { error: `Insufficient $LUCK amount. Expected: ${expectedAmount}, Got: ${actualAmount.toString()}` },
+        { error: `Insufficient $LUCK amount. Expected: ${purchase.amount_paid}, Got: ${actualAmount.toString()}` },
         { status: 400 }
       );
     }
@@ -105,8 +123,19 @@ export async function POST(request: NextRequest) {
       sender = senderChange.owner.AddressOwner;
     }
 
-    // TODO: Update purchase record in Supabase
-    // TODO: Grant spins to user
+    // Complete purchase and grant reward atomically
+    const result = await completePurchase(
+      purchaseId,
+      digest,
+      sender || ''
+    );
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error || 'Failed to complete purchase' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -115,6 +144,10 @@ export async function POST(request: NextRequest) {
       sender,
       amount: actualAmount.toString(),
       coinType: expectedCoinType,
+      reward: {
+        type: result.rewardType,
+        amount: result.rewardAmount,
+      },
     });
   } catch (error) {
     console.error('LUCK verification error:', error);

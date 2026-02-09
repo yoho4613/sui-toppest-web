@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useSuiWallet } from '@/hooks/useSuiWallet';
 import { useZkLogin } from '@/hooks/useZkLogin';
 import { useAppStore } from '@/stores/useAppStore';
-import { AppHeader, BottomNav } from '@/components/app';
+import { AppHeader, BottomNav, PaymentPopup } from '@/components/app';
 
 export default function PlayLayout({
   children,
@@ -89,6 +89,9 @@ export default function PlayLayout({
         </main>
         {isConnected && <BottomNav />}
       </div>
+
+      {/* Global Payment Popup */}
+      <PaymentPopup />
     </div>
   );
 }

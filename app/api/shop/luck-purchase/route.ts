@@ -1,25 +1,16 @@
 /**
  * $LUCK Token Purchase API Route
- * Creates a purchase intent for spin packages paid with $LUCK tokens
+ * Creates a purchase intent for products paid with $LUCK tokens
  *
  * Flow:
- * 1. Client calls this route with package ID and user info
- * 2. Server returns the expected $LUCK amount and recipient
+ * 1. Client calls this route with product ID and user info
+ * 2. Server creates a pending purchase record with expected amount
  * 3. Client transfers $LUCK tokens using sendToken
  * 4. Client sends the transaction digest to /api/shop/luck-verify
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-
-// Spin package definitions with $LUCK pricing
-// $LUCK is discounted compared to SUI to incentivize token usage
-const SPIN_PACKAGES = {
-  'pack_10': { spins: 10, luckPrice: 100, label: '10 Spins' },
-  'pack_30': { spins: 30, luckPrice: 250, label: '30 Spins (+17% discount)' },
-  'pack_100': { spins: 100, luckPrice: 700, label: '100 Spins (+30% discount)' },
-} as const;
-
-type PackageId = keyof typeof SPIN_PACKAGES;
+import { getProductById, createPurchase } from '@/lib/db';
 
 // $LUCK has 9 decimals (same as SUI)
 const LUCK_DECIMALS = 9;
@@ -27,30 +18,30 @@ const LUCK_DECIMALS = 9;
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { packageId, userId, walletAddress } = body as {
-      packageId: string;
-      userId: string;
+    const { productId, walletAddress } = body as {
+      productId: string;
       walletAddress: string;
     };
 
     // Validate input
-    if (!packageId || !userId || !walletAddress) {
+    if (!productId || !walletAddress) {
       return NextResponse.json(
-        { error: 'Missing required fields: packageId, userId, walletAddress' },
+        { error: 'Missing required fields: productId, walletAddress' },
         { status: 400 }
       );
     }
 
-    const pkg = SPIN_PACKAGES[packageId as PackageId];
-    if (!pkg) {
+    // Get product from DB
+    const product = await getProductById(productId);
+    if (!product) {
       return NextResponse.json(
-        { error: `Invalid package ID: ${packageId}` },
+        { error: `Product not found: ${productId}` },
         { status: 400 }
       );
     }
 
     // Calculate amount with decimals
-    const amountWithDecimals = BigInt(pkg.luckPrice) * BigInt(10 ** LUCK_DECIMALS);
+    const amountWithDecimals = BigInt(product.price_luck) * BigInt(10 ** LUCK_DECIMALS);
 
     // Admin wallet address (where $LUCK payment should be sent)
     const recipientAddress = process.env.SUI_ADMIN_WALLET_ADDRESS;
@@ -72,13 +63,30 @@ export async function POST(request: NextRequest) {
 
     const coinType = `${luckPackageId}::luck_token::LUCK_TOKEN`;
 
+    // Create pending purchase record in DB
+    const purchaseResult = await createPurchase({
+      wallet_address: walletAddress,
+      product_id: productId,
+      payment_method: 'luck',
+      amount_paid: amountWithDecimals.toString(),
+    });
+
+    if (!purchaseResult.success || !purchaseResult.purchase) {
+      return NextResponse.json(
+        { error: purchaseResult.error || 'Failed to create purchase' },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       purchase: {
-        packageId,
-        spins: pkg.spins,
-        label: pkg.label,
-        luckAmount: pkg.luckPrice,
+        purchaseId: purchaseResult.purchase.id,
+        productId,
+        productName: product.name,
+        rewardType: product.reward_type,
+        rewardAmount: product.reward_amount,
+        luckAmount: product.price_luck,
         amountWithDecimals: amountWithDecimals.toString(),
         recipientAddress,
         coinType,

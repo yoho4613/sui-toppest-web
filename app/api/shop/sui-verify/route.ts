@@ -1,11 +1,11 @@
 /**
  * SUI Payment Verification API Route
- * Verifies that a SUI transaction was successful and grants spins
+ * Verifies that a SUI transaction was successful and grants rewards
  *
  * Flow:
  * 1. Client sends transaction digest after wallet execution
  * 2. Server verifies the transaction on-chain (instant, no polling needed)
- * 3. Server grants spins to the user
+ * 3. Server completes purchase and grants rewards atomically
  *
  * Unlike TON which required polling with timeouts,
  * SUI verification is instant via getTransactionBlock.
@@ -13,21 +13,36 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyPayment } from '@/lib/sui-utils';
+import { completePurchase, failPurchase, getPurchaseById } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { digest, userId, packageId, expectedAmountMist } = body as {
+    const { digest, purchaseId } = body as {
       digest: string;
-      userId: string;
-      packageId: string;
-      expectedAmountMist: string;
+      purchaseId: string;
     };
 
     // Validate input
-    if (!digest || !userId || !packageId || !expectedAmountMist) {
+    if (!digest || !purchaseId) {
       return NextResponse.json(
-        { error: 'Missing required fields: digest, userId, packageId, expectedAmountMist' },
+        { error: 'Missing required fields: digest, purchaseId' },
+        { status: 400 }
+      );
+    }
+
+    // Get purchase record
+    const purchase = await getPurchaseById(purchaseId);
+    if (!purchase) {
+      return NextResponse.json(
+        { error: 'Purchase not found' },
+        { status: 404 }
+      );
+    }
+
+    if (purchase.status !== 'pending') {
+      return NextResponse.json(
+        { error: `Purchase already ${purchase.status}` },
         { status: 400 }
       );
     }
@@ -44,28 +59,32 @@ export async function POST(request: NextRequest) {
     const verification = await verifyPayment({
       digest,
       expectedRecipient: recipientAddress,
-      expectedAmountMist: BigInt(expectedAmountMist),
+      expectedAmountMist: BigInt(purchase.amount_paid),
       tolerancePercent: 5,
     });
 
     if (!verification.verified) {
+      // Mark purchase as failed
+      await failPurchase(purchaseId, verification.error);
       return NextResponse.json(
         { error: `Payment verification failed: ${verification.error}` },
         { status: 400 }
       );
     }
 
-    // TODO: Update purchase record in Supabase
-    // await supabase.from('purchases').update({
-    //   status: 'completed',
-    //   transaction_digest: digest,
-    //   sender_address: verification.sender,
-    //   actual_amount_mist: verification.actualAmount?.toString(),
-    //   verified_at: new Date().toISOString(),
-    // }).eq('user_id', userId).eq('package_id', packageId).eq('status', 'pending');
+    // Complete purchase and grant reward atomically
+    const result = await completePurchase(
+      purchaseId,
+      digest,
+      verification.sender || ''
+    );
 
-    // TODO: Grant spins to user
-    // await supabase.rpc('add_spins', { p_user_id: userId, p_spins: package.spins });
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error || 'Failed to complete purchase' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -73,6 +92,10 @@ export async function POST(request: NextRequest) {
       digest,
       sender: verification.sender,
       amount: verification.actualAmount?.toString(),
+      reward: {
+        type: result.rewardType,
+        amount: result.rewardAmount,
+      },
     });
   } catch (error) {
     console.error('SUI verification error:', error);

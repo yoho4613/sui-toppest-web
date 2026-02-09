@@ -15,6 +15,35 @@ interface TicketData {
   clubBalance: number;
 }
 
+// Shop types
+export interface ShopProduct {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  price_usd: number;
+  price_sui: number;
+  price_sui_mist: string;
+  price_luck: number;
+  reward_type: string;
+  reward_amount: number;
+  badge: string | null;
+  bonus_text: string | null;
+}
+
+export type PaymentMethod = 'sui' | 'luck';
+export type PurchaseStatus = 'idle' | 'creating' | 'signing' | 'verifying' | 'success' | 'error';
+
+interface PaymentPopupState {
+  isOpen: boolean;
+  product: ShopProduct | null;
+  paymentMethod: PaymentMethod;
+  status: PurchaseStatus;
+  error: string | null;
+  txDigest: string | null;
+  reward: { type: string; amount: number } | null;
+}
+
 interface ProfileData {
   id: string;
   wallet_address: string;
@@ -49,6 +78,13 @@ interface AppState {
   leaderboard: LeaderboardEntry[];
   userRank: LeaderboardEntry | null;
 
+  // Shop data
+  products: ShopProduct[];
+  paymentPopup: PaymentPopupState;
+
+  // Balance refresh trigger (increment to force header refresh)
+  balanceRefreshTrigger: number;
+
   // Actions
   init: (walletAddress: string, gameType?: string) => Promise<void>;
   refreshTickets: (walletAddress: string, gameType?: string) => Promise<void>;
@@ -60,10 +96,31 @@ interface AppState {
     totalTickets: number;
   }) => void;
   addClubReward: (amount: number) => void;
+  addStarTickets: (amount: number) => void;
   reset: () => void;
+
+  // Shop actions
+  fetchProducts: () => Promise<void>;
+  openPaymentPopup: (product: ShopProduct, method?: PaymentMethod) => void;
+  closePaymentPopup: () => void;
+  setPaymentMethod: (method: PaymentMethod) => void;
+  setPaymentStatus: (status: PurchaseStatus, error?: string | null, txDigest?: string | null, reward?: { type: string; amount: number } | null) => void;
+
+  // Balance actions
+  triggerBalanceRefresh: () => void;
 }
 
 const DEFAULT_GAME_TYPE = 'dash-trials';
+
+const DEFAULT_PAYMENT_POPUP: PaymentPopupState = {
+  isOpen: false,
+  product: null,
+  paymentMethod: 'sui',
+  status: 'idle',
+  error: null,
+  txDigest: null,
+  reward: null,
+};
 
 export const useAppStore = create<AppState>((set, get) => ({
   // Initial state
@@ -74,6 +131,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   profile: null,
   leaderboard: [],
   userRank: null,
+  products: [],
+  paymentPopup: DEFAULT_PAYMENT_POPUP,
+  balanceRefreshTrigger: 0,
 
   // Initialize all data at once
   init: async (walletAddress: string, gameType: string = DEFAULT_GAME_TYPE) => {
@@ -87,11 +147,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ isInitializing: true, initError: null });
 
     try {
-      // Fetch all data in parallel
-      const [ticketRes, profileRes, leaderboardRes] = await Promise.all([
+      // Fetch all data in parallel (including shop products)
+      const [ticketRes, profileRes, leaderboardRes, productsRes] = await Promise.all([
         fetch(`/api/game/ticket?address=${walletAddress}&game_type=${gameType}`),
         fetch(`/api/profile?address=${encodeURIComponent(walletAddress)}`),
         fetch(`/api/game/leaderboard?game_type=${gameType}&filter=weekly&address=${walletAddress}`),
+        fetch('/api/shop/products'),
       ]);
 
       // Process ticket data
@@ -123,6 +184,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         userRank = data.userRank || null;
       }
 
+      // Process shop products
+      let products: ShopProduct[] = [];
+      if (productsRes.ok) {
+        const data = await productsRes.json();
+        products = data.products || [];
+      }
+
       set({
         isInitialized: true,
         isInitializing: false,
@@ -130,6 +198,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         profile,
         leaderboard,
         userRank,
+        products,
       });
     } catch (error) {
       console.error('App init error:', error);
@@ -226,6 +295,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  // Add star tickets after purchase (optimistic update)
+  addStarTickets: (amount: number) => {
+    const state = get();
+    if (state.ticketData) {
+      set({
+        ticketData: {
+          ...state.ticketData,
+          starTickets: state.ticketData.starTickets + amount,
+          totalTickets: state.ticketData.totalTickets + amount,
+        },
+      });
+    }
+  },
+
   // Reset all state (on logout)
   reset: () => {
     set({
@@ -236,6 +319,65 @@ export const useAppStore = create<AppState>((set, get) => ({
       profile: null,
       leaderboard: [],
       userRank: null,
+      products: [],
+      paymentPopup: DEFAULT_PAYMENT_POPUP,
     });
+  },
+
+  // Shop actions
+  fetchProducts: async () => {
+    try {
+      const res = await fetch('/api/shop/products');
+      if (res.ok) {
+        const data = await res.json();
+        set({ products: data.products || [] });
+      }
+    } catch (error) {
+      console.error('Fetch products error:', error);
+    }
+  },
+
+  openPaymentPopup: (product: ShopProduct, method: PaymentMethod = 'sui') => {
+    set({
+      paymentPopup: {
+        ...DEFAULT_PAYMENT_POPUP,
+        isOpen: true,
+        product,
+        paymentMethod: method,
+      },
+    });
+  },
+
+  closePaymentPopup: () => {
+    set({ paymentPopup: DEFAULT_PAYMENT_POPUP });
+  },
+
+  setPaymentMethod: (method: PaymentMethod) => {
+    const state = get();
+    set({
+      paymentPopup: {
+        ...state.paymentPopup,
+        paymentMethod: method,
+      },
+    });
+  },
+
+  setPaymentStatus: (status: PurchaseStatus, error?: string | null, txDigest?: string | null, reward?: { type: string; amount: number } | null) => {
+    const state = get();
+    set({
+      paymentPopup: {
+        ...state.paymentPopup,
+        status,
+        error: error ?? null,
+        txDigest: txDigest ?? null,
+        reward: reward ?? null,
+      },
+    });
+  },
+
+  // Trigger balance refresh (called after successful payment)
+  triggerBalanceRefresh: () => {
+    const state = get();
+    set({ balanceRefreshTrigger: state.balanceRefreshTrigger + 1 });
   },
 }));

@@ -2,21 +2,42 @@
 
 import { useSuiWallet } from '@/hooks/useSuiWallet';
 import { useZkLogin } from '@/hooks/useZkLogin';
+import { useAppStore } from '@/stores/useAppStore';
 import { mistToSui } from '@/lib/sui-utils';
 import { useEffect, useState } from 'react';
 import { useSuiClient } from '@mysten/dapp-kit';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-const PACKAGE_ID = '0x5cbe88ff66b4772358bcda0e509b955d3c51d05f956343253f8d780a5361c661';
+const PACKAGE_ID = process.env.NEXT_PUBLIC_SUI_LUCK_PACKAGE_ID || '0x7795285cd9a37afc24140e240d3fa0c0098f22a63fd93ca1adc3a50b5c036040';
 const LUCK_COIN_TYPE = `${PACKAGE_ID}::luck_token::LUCK_TOKEN`;
 
-/** Format balance with 2 decimals, use k suffix for 1000+ */
+/** Format balance based on value range */
 function formatBalance(mist: bigint | string): string {
   const value = mistToSui(mist);
-  if (value >= 1000) {
-    return (value / 1000).toFixed(2) + 'k';
+
+  if (value >= 10_000_000) {
+    // 1000만 이상: nn.nnM
+    return (value / 1_000_000).toFixed(2) + 'M';
   }
+  if (value >= 1_000_000) {
+    // 100만 이상: n,nnn.nk
+    const kValue = value / 1000;
+    return kValue.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'k';
+  }
+  if (value >= 100_000) {
+    // 10만 이상: nnn.nk
+    return (value / 1000).toFixed(1) + 'k';
+  }
+  if (value >= 10_000) {
+    // 1만 이상: nn.nk
+    return (value / 1000).toFixed(1) + 'k';
+  }
+  if (value >= 1000) {
+    // 1천 이상: n.nk
+    return (value / 1000).toFixed(1) + 'k';
+  }
+  // 1천 이하: n.nn
   return value.toFixed(2);
 }
 
@@ -25,6 +46,7 @@ export function AppHeader() {
   const client = useSuiClient();
   const { isConnected: isWalletConnected, address: walletAddress, getBalance, getTokenBalance } = useSuiWallet();
   const { isAuthenticated: isZkLoginAuth, address: zkAddress, userInfo } = useZkLogin();
+  const { balanceRefreshTrigger } = useAppStore();
 
   const [suiBalance, setSuiBalance] = useState<string>('0');
   const [luckBalance, setLuckBalance] = useState<string>('0');
@@ -68,7 +90,7 @@ export function AppHeader() {
     // Refresh every 30 seconds
     const interval = setInterval(fetchBalances, 30000);
     return () => clearInterval(interval);
-  }, [isConnected, address, isWalletConnected, isZkLoginAuth, zkAddress, getBalance, getTokenBalance, client]);
+  }, [isConnected, address, isWalletConnected, isZkLoginAuth, zkAddress, getBalance, getTokenBalance, client, balanceRefreshTrigger]);
 
   // Get avatar
   const avatar = userInfo?.picture || null;

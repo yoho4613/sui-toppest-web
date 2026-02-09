@@ -34,3 +34,19 @@ export {
   type LeaderboardEntry,
   type LeaderboardResult,
 } from './leaderboard';
+
+// Shop
+export {
+  getShopProducts,
+  getProductById,
+  createPurchase,
+  completePurchase,
+  getPurchaseById,
+  getPendingPurchase,
+  getUserPurchases,
+  failPurchase,
+  getUserStarTickets,
+  type ShopProduct,
+  type Purchase,
+  type CreatePurchaseInput,
+} from './shop';

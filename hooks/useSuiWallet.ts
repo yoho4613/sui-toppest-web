@@ -38,9 +38,38 @@ export function useSuiWallet() {
     }
 
     try {
+      // Get all SUI coins
+      const coins = await client.getCoins({
+        owner: account.address,
+        coinType: '0x2::sui::SUI',
+      });
+
+      if (coins.data.length === 0) {
+        return { success: false, error: 'No SUI coins found' };
+      }
+
+      // Check total balance
+      const totalBalance = coins.data.reduce((sum, c) => sum + BigInt(c.balance), 0n);
+      const requiredAmount = amountInMist + BigInt(10_000_000); // transfer + gas buffer
+      if (totalBalance < requiredAmount) {
+        return { success: false, error: `Insufficient SUI balance` };
+      }
+
       const tx = new Transaction();
-      const [coin] = tx.splitCoins(tx.gas, [amountInMist]);
-      tx.transferObjects([coin], recipientAddress);
+
+      // Set all coins as gas payment sources - SDK will merge them if needed
+      tx.setGasPayment(coins.data.map(c => ({
+        objectId: c.coinObjectId,
+        version: c.version,
+        digest: c.digest,
+      })));
+
+      // Split from gas (which now has access to all coins)
+      const [splitCoin] = tx.splitCoins(tx.gas, [amountInMist]);
+      tx.transferObjects([splitCoin], recipientAddress);
+
+      // Set gas budget explicitly
+      tx.setGasBudget(10_000_000); // 0.01 SUI
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = await signAndExecute({
@@ -52,12 +81,24 @@ export function useSuiWallet() {
         digest: result.digest,
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Transaction failed';
+
+      // Detect network mismatch errors
+      if (errorMessage.includes('notExists') ||
+          errorMessage.includes('No valid SUI') ||
+          errorMessage.includes('input objects are invalid')) {
+        return {
+          success: false,
+          error: 'Network mismatch: Please switch your wallet to Devnet in wallet settings.',
+        };
+      }
+
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Transaction failed',
+        error: errorMessage,
       };
     }
-  }, [account, signAndExecute]);
+  }, [account, client, signAndExecute]);
 
   /**
    * Get SUI balance for the connected wallet
@@ -106,7 +147,7 @@ export function useSuiWallet() {
     }
 
     try {
-      // Get all coins of the specified type owned by the user
+      // Get all coins of the specified type owned by the user (fresh data)
       const coins = await client.getCoins({
         owner: account.address,
         coinType,
@@ -114,6 +155,12 @@ export function useSuiWallet() {
 
       if (coins.data.length === 0) {
         return { success: false, error: 'No tokens found in wallet' };
+      }
+
+      // Calculate total balance
+      const totalBalance = coins.data.reduce((sum, c) => sum + BigInt(c.balance), 0n);
+      if (totalBalance < amount) {
+        return { success: false, error: `Insufficient balance: have ${totalBalance}, need ${amount}` };
       }
 
       const tx = new Transaction();
@@ -135,6 +182,9 @@ export function useSuiWallet() {
         tx.transferObjects([splitCoin], recipientAddress);
       }
 
+      // Set gas budget explicitly
+      tx.setGasBudget(10_000_000); // 0.01 SUI
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = await signAndExecute({
         transaction: tx as any,
@@ -145,9 +195,21 @@ export function useSuiWallet() {
         digest: result.digest,
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Transaction failed';
+
+      // Detect network mismatch errors
+      if (errorMessage.includes('notExists') ||
+          errorMessage.includes('No valid SUI') ||
+          errorMessage.includes('input objects are invalid')) {
+        return {
+          success: false,
+          error: 'Network mismatch: Please switch your wallet to Devnet in wallet settings.',
+        };
+      }
+
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Transaction failed',
+        error: errorMessage,
       };
     }
   }, [account, client, signAndExecute]);

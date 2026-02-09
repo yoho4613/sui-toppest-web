@@ -1,14 +1,6 @@
-'use client';
-
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function LandingPage() {
-  const router = useRouter();
-
-  const handlePlayClick = () => {
-    router.push('/play');
-  };
-
   return (
     <div className="min-h-screen bg-[#0F1419] text-white overflow-hidden">
       {/* Background Gradient Mesh */}
@@ -29,12 +21,12 @@ export default function LandingPage() {
             TOPPEST
           </span>
         </div>
-        <button
-          onClick={handlePlayClick}
+        <Link
+          href="/play"
           className="px-4 py-2 bg-[#4DA2FF] text-white rounded-full text-sm font-medium hover:bg-[#4DA2FF]/80 transition-colors"
         >
           Play Now
-        </button>
+        </Link>
       </header>
 
       {/* Hero Section */}
@@ -59,12 +51,12 @@ export default function LandingPage() {
           Play mini-games, compete on leaderboards, and earn real SUI rewards
         </p>
 
-        <button
-          onClick={handlePlayClick}
+        <Link
+          href="/play"
           className="px-8 py-4 bg-gradient-to-r from-[#4DA2FF] to-blue-400 rounded-full font-bold text-lg shadow-[0_0_30px_rgba(77,163,255,0.4)] hover:shadow-[0_0_40px_rgba(77,163,255,0.6)] transition-all hover:-translate-y-1"
         >
           Play Now
-        </button>
+        </Link>
 
         {/* Stats */}
         <div className="flex gap-8 mt-12">
@@ -144,9 +136,9 @@ export default function LandingPage() {
           </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {['Space Shooter', 'Crypto Slots', 'Puzzle Rush', 'Speed Runner'].map((game, i) => (
-              <div
+              <Link
                 key={game}
-                onClick={handlePlayClick}
+                href="/play"
                 className="aspect-square bg-gradient-to-br from-white/10 to-white/5 border border-white/10 rounded-2xl flex flex-col items-center justify-center p-4 hover:border-[#4DA2FF]/50 transition-colors cursor-pointer"
               >
                 <div className="w-16 h-16 bg-white/10 rounded-xl mb-3 flex items-center justify-center">
@@ -154,7 +146,7 @@ export default function LandingPage() {
                 </div>
                 <p className="font-medium text-sm text-center">{game}</p>
                 <p className="text-[#4DA2FF] text-xs mt-1">+50 SUI</p>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -169,12 +161,12 @@ export default function LandingPage() {
           <p className="text-white/50 mb-8">
             Join thousands of players earning SUI rewards every day
           </p>
-          <button
-            onClick={handlePlayClick}
+          <Link
+            href="/play"
             className="px-8 py-4 bg-gradient-to-r from-[#4DA2FF] to-blue-400 rounded-full font-bold text-lg shadow-[0_0_30px_rgba(77,163,255,0.4)] hover:shadow-[0_0_40px_rgba(77,163,255,0.6)] transition-all hover:-translate-y-1"
           >
             Start Playing Now
-          </button>
+          </Link>
         </div>
       </section>
 

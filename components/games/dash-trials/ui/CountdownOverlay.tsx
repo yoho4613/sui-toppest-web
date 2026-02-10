@@ -8,6 +8,7 @@ import { useGameAPI } from '@/hooks/useGameAPI';
 import { useSuiWallet } from '@/hooks/useSuiWallet';
 import { useZkLogin } from '@/hooks/useZkLogin';
 import { useAppStore } from '@/stores/useAppStore';
+import { useQuestStore } from '@/hooks/useQuestStore';
 import { formatReward } from '@/lib/rewards/club-rewards';
 
 const GAME_TYPE = 'dash-trials';
@@ -324,6 +325,7 @@ export function ResultOverlay() {
 
   const { saveGameRecord, checkTickets, useTicket, isLoading } = useGameAPI();
   const { refreshLeaderboard, addClubReward } = useAppStore();
+  const refreshQuestsAfterGame = useQuestStore((state) => state.refreshAfterGame);
   const [isSaved, setIsSaved] = useState(false);
   const [clubEarned, setClubEarned] = useState(0);
   const [ticketStatus, setTicketStatus] = useState<{
@@ -369,6 +371,9 @@ export function ResultOverlay() {
 
           // Refresh leaderboard in global store so ranking page has fresh data
           refreshLeaderboard(GAME_TYPE, 'weekly', address);
+
+          // Refresh quests to show updated progress
+          refreshQuestsAfterGame(address);
         }
       });
 
@@ -390,7 +395,7 @@ export function ResultOverlay() {
       hasSavedRef.current = false;
       setIsSaved(false);
     }
-  }, [status, address, totalScore, finalDistance, elapsedTime, feverCount, perfectCount, coinCount, potionCount, difficulty, saveGameRecord, checkTickets, refreshLeaderboard, addClubReward]);
+  }, [status, address, totalScore, finalDistance, elapsedTime, feverCount, perfectCount, coinCount, potionCount, difficulty, saveGameRecord, checkTickets, refreshLeaderboard, addClubReward, refreshQuestsAfterGame]);
 
   if (status !== 'gameover') return null;
 

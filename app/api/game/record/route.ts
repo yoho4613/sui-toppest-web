@@ -12,6 +12,7 @@ import {
   getUserIdByWallet,
   getActiveSeason,
   updateLeaderboard,
+  updateQuestProgress,
 } from '@/lib/db';
 import { calculateClubRewards } from '@/lib/rewards/club-rewards';
 
@@ -93,6 +94,15 @@ export async function POST(request: NextRequest) {
       clubEarned
     ).catch((err) => {
       console.error('Failed to update leaderboard:', err);
+    });
+
+    // Update quest progress (async, don't block response)
+    Promise.all([
+      updateQuestProgress(wallet_address, 'games_played_daily', 1),
+      updateQuestProgress(wallet_address, 'games_played_weekly', 1),
+      updateQuestProgress(wallet_address, 'first_game', 1),
+    ]).catch((err) => {
+      console.error('Failed to update quest progress:', err);
     });
 
     return NextResponse.json({

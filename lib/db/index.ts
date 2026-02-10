@@ -51,3 +51,17 @@ export {
   type Purchase,
   type CreatePurchaseInput,
 } from './shop';
+
+// Quests
+export {
+  getQuestsForUser,
+  updateQuestProgress,
+  claimQuestReward,
+  calculateProgress,
+  syncQuestProgress,
+  type Quest,
+  type UserQuest,
+  type QuestWithProgress,
+  type QuestsResult,
+  type ClaimResult,
+} from './quests';

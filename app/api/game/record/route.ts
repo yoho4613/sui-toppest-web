@@ -13,8 +13,10 @@ import {
   getActiveSeason,
   updateLeaderboard,
   updateQuestProgress,
+  grantRevenueShare,
 } from '@/lib/db';
 import { calculateClubRewards } from '@/lib/rewards/club-rewards';
+import { REFERRAL_REVENUE_SHARE } from '@/lib/constants';
 
 // POST /api/game/record - Save game record
 export async function POST(request: NextRequest) {
@@ -104,6 +106,18 @@ export async function POST(request: NextRequest) {
     ]).catch((err) => {
       console.error('Failed to update quest progress:', err);
     });
+
+    // Referral revenue share: Grant 1% of CLUB earnings to referrer
+    if (clubEarned > 0) {
+      const shareAmount = Math.floor(
+        clubEarned * REFERRAL_REVENUE_SHARE.earningSharePercent / 100
+      );
+      if (shareAmount > 0) {
+        grantRevenueShare(wallet_address, shareAmount).catch((err) => {
+          console.error('Failed to grant referral revenue share:', err);
+        });
+      }
+    }
 
     return NextResponse.json({
       success: true,

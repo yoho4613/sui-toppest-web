@@ -370,11 +370,17 @@ export async function calculateProgress(
       return count && count > 0 ? 1 : 0;
     }
 
-    // Referral conditions - will need referrals table
+    // Referral conditions
     case 'referral_daily':
-    case 'referral_weekly':
-      // TODO: Implement when referrals table is available
-      return 0;
+    case 'referral_weekly': {
+      // Get referral count from user_profiles
+      const { data: profile } = await supabaseAdmin
+        .from('user_profiles')
+        .select('referral_count')
+        .eq('wallet_address', walletAddress)
+        .single();
+      return profile?.referral_count || 0;
+    }
 
     default:
       console.warn('Unknown condition type:', conditionType);

@@ -7,6 +7,7 @@ import { mistToSui } from '@/lib/sui-utils';
 import { useEffect, useState } from 'react';
 import { useSuiClient } from '@mysten/dapp-kit';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 
 const PACKAGE_ID = process.env.NEXT_PUBLIC_SUI_LUCK_PACKAGE_ID || '0x7795285cd9a37afc24140e240d3fa0c0098f22a63fd93ca1adc3a50b5c036040';
@@ -45,7 +46,7 @@ export function AppHeader() {
   const pathname = usePathname();
   const client = useSuiClient();
   const { isConnected: isWalletConnected, address: walletAddress, getBalance, getTokenBalance } = useSuiWallet();
-  const { isAuthenticated: isZkLoginAuth, address: zkAddress, userInfo } = useZkLogin();
+  const { isAuthenticated: isZkLoginAuth, address: zkAddress } = useZkLogin();
   const { balanceRefreshTrigger } = useAppStore();
 
   const [suiBalance, setSuiBalance] = useState<string>('0');
@@ -92,28 +93,35 @@ export function AppHeader() {
     return () => clearInterval(interval);
   }, [isConnected, address, isWalletConnected, isZkLoginAuth, zkAddress, getBalance, getTokenBalance, client, balanceRefreshTrigger]);
 
-  // Get avatar
-  const avatar = userInfo?.picture || null;
+  // Check if on main play page
+  const isPlayPage = pathname === '/play';
 
   // Hide on game pages (after all hooks)
   if (isGamePage) return null;
 
   return (
     <header className="flex items-center justify-between px-5 pt-6 pb-4 sticky top-0 bg-[#0F1419]/90 backdrop-blur-lg z-40">
-      {/* Left: Avatar */}
-      <Link href="/play/profile">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#4DA2FF] to-purple-500 p-[2px]">
-          <div className="w-full h-full rounded-full bg-[#1A1F26] flex items-center justify-center overflow-hidden">
-            {avatar ? (
-              <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
-            ) : (
-              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            )}
-          </div>
-        </div>
-      </Link>
+      {/* Left: Logo (on play page) or Back button (on other pages) */}
+      {isPlayPage ? (
+        <Link href="/play" className="flex items-center">
+          <Image
+            src="/images/toppest-logo.png"
+            alt="Toppest"
+            width={40}
+            height={40}
+            className="w-10 h-10 rounded-full object-cover"
+          />
+        </Link>
+      ) : (
+        <Link
+          href="/play"
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </Link>
+      )}
 
       {/* Right: Balances */}
       <div className="flex items-center gap-2">

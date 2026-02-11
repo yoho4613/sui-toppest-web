@@ -65,3 +65,19 @@ export {
   type QuestsResult,
   type ClaimResult,
 } from './quests';
+
+// Referrals
+export {
+  createReferral,
+  getReferralsByWallet,
+  getReferralStats,
+  grantRevenueShare,
+  getUserReferredBy,
+  getUserReferralCount,
+  getUserReferralCode,
+  getWalletByReferralCode,
+  type Referral,
+  type ReferralWithUser,
+  type ReferralStats,
+  type CreateReferralResult,
+} from './referrals';

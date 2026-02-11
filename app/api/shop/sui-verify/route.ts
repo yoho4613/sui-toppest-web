@@ -13,7 +13,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyPayment } from '@/lib/sui-utils';
-import { completePurchase, failPurchase, getPurchaseById } from '@/lib/db';
+import { completePurchase, failPurchase, getPurchaseById, updateQuestProgress, grantRevenueShare } from '@/lib/db';
+import { REFERRAL_REVENUE_SHARE } from '@/lib/constants';
 
 export async function POST(request: NextRequest) {
   try {
@@ -84,6 +85,28 @@ export async function POST(request: NextRequest) {
         { error: result.error || 'Failed to complete purchase' },
         { status: 500 }
       );
+    }
+
+    // Update quest progress (async, don't block response)
+    const walletAddress = purchase.wallet_address;
+    const priceUsd = purchase.price_usd || 0;
+
+    Promise.all([
+      updateQuestProgress(walletAddress, 'purchase_made_daily', 1),
+      updateQuestProgress(walletAddress, 'first_purchase', 1),
+      updateQuestProgress(walletAddress, 'purchase_usd_weekly', priceUsd),
+    ]).catch((err) => {
+      console.error('Failed to update quest progress:', err);
+    });
+
+    // Referral revenue share: Grant USD × 10 CLUB to referrer
+    if (priceUsd > 0) {
+      const shareClub = Math.round(priceUsd * REFERRAL_REVENUE_SHARE.purchaseMultiplier);
+      if (shareClub > 0) {
+        grantRevenueShare(walletAddress, shareClub).catch((err) => {
+          console.error('Failed to grant referral revenue share:', err);
+        });
+      }
     }
 
     return NextResponse.json({

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import {
   useQuestStore,
   useShowClaimSuccess,
@@ -364,20 +365,22 @@ export default function QuestsPage() {
         ) : null}
 
         {/* Invite Friends CTA */}
-        <div className="bg-[#1A1F26] border border-white/10 rounded-2xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-[#4DA2FF]/20 flex items-center justify-center text-2xl">
-              🎁
+        <Link href="/play/invite" className="block">
+          <div className="bg-[#1A1F26] border border-white/10 rounded-2xl p-4 hover:border-[#4DA2FF]/30 transition-colors">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-[#4DA2FF]/20 flex items-center justify-center text-2xl">
+                🎁
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-white">Invite Friends</h3>
+                <p className="text-gray-400 text-sm">Earn $CLUB for each friend!</p>
+              </div>
+              <div className="px-4 py-2 bg-[#4DA2FF] text-white font-semibold rounded-xl text-sm">
+                Invite
+              </div>
             </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-white">Invite Friends</h3>
-              <p className="text-gray-400 text-sm">Earn $CLUB for each friend!</p>
-            </div>
-            <button className="px-4 py-2 bg-[#4DA2FF] text-white font-semibold rounded-xl text-sm">
-              Invite
-            </button>
           </div>
-        </div>
+        </Link>
       </div>
     </>
   );

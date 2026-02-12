@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '../hooks/useGameStore';
@@ -9,12 +9,14 @@ const LANE_WIDTH = 2.5;
 const LANE_TRANSITION_SPEED = 15;
 
 // Color palette - High contrast for visibility against dark map
-const SUIT_COLOR = '#e0e8f0';  // Bright white-gray
-const SUIT_DARK = '#8090a0';   // Darker accent for depth
+const SUIT_COLOR = '#d8e0f0';  // Bright white-gray
+const SUIT_DARK = '#4a5568';   // Darker accent for depth
+const SUIT_ARMOR = '#2d3748'; // Armor plates
 const ACCENT_COLOR = '#00ff88';
 const VISOR_COLOR = '#00ffff';  // Bright cyan
 const FEVER_COLOR = '#ff00ff';
 const WARNING_COLOR = '#ff6666';  // Bright red
+const BOOSTER_FLAME = '#ff8844'; // Booster flame color
 
 export function Player() {
   // Refs for animation
@@ -24,22 +26,26 @@ export function Player() {
   const rightArmRef = useRef<THREE.Group>(null);
   const leftLegRef = useRef<THREE.Group>(null);
   const rightLegRef = useRef<THREE.Group>(null);
+  const boosterRef = useRef<THREE.Mesh>(null);
+  const boosterFlameRef = useRef<THREE.Mesh>(null);
   const runPhaseRef = useRef(0);
   const crashPhaseRef = useRef(0);
   const exhaustionPhaseRef = useRef(0);
+  const boosterPhaseRef = useRef(0);
 
   // Game state
   const playerLane = useGameStore((state) => state.playerLane);
   const playerAction = useGameStore((state) => state.playerAction);
   const playerY = useGameStore((state) => state.playerY);
   const isFeverMode = useGameStore((state) => state.isFeverMode);
-  const energy = useGameStore((state) => state.energy);
+  const health = useGameStore((state) => state.health);
   const status = useGameStore((state) => state.status);
   const isCrashing = useGameStore((state) => state.isCrashing);
-  const isExhausted = useGameStore((state) => state.isExhausted);
+  const gameOverReason = useGameStore((state) => state.gameOverReason);
 
   const targetX = playerLane * LANE_WIDTH;
-  const isLowEnergy = energy <= 30;
+  const isLowHealth = health <= 30;
+  const isExhausted = gameOverReason === 'exhaustion';
 
   // Reset player position when game restarts (countdown starts)
   useEffect(() => {
@@ -77,7 +83,7 @@ export function Player() {
     if (isCrashing) return '#ff0000';
     if (isExhausted) return '#666666'; // Dim gray for exhaustion
     if (isFeverMode) return FEVER_COLOR;
-    if (isLowEnergy) return WARNING_COLOR;
+    if (isLowHealth) return WARNING_COLOR;
     return ACCENT_COLOR;
   };
 
@@ -85,13 +91,32 @@ export function Player() {
     if (isCrashing) return '#ff0000';
     if (isExhausted) return '#333333'; // Dim for exhaustion
     if (isFeverMode) return FEVER_COLOR;
-    if (isLowEnergy) return WARNING_COLOR;
+    if (isLowHealth) return WARNING_COLOR;
     return VISOR_COLOR;
   };
 
   // Animation loop
   useFrame((state, delta) => {
     if (!groupRef.current || !bodyRef.current) return;
+
+    // Update booster flame animation
+    boosterPhaseRef.current += delta * 15;
+
+    // Animate booster flame
+    if (boosterFlameRef.current && status === 'playing') {
+      const flameScale = isFeverMode
+        ? 1.5 + Math.sin(boosterPhaseRef.current) * 0.5
+        : 0.8 + Math.sin(boosterPhaseRef.current) * 0.3;
+
+      boosterFlameRef.current.scale.set(1, flameScale, 1);
+
+      if (boosterFlameRef.current.material && 'emissiveIntensity' in boosterFlameRef.current.material) {
+        const mat = boosterFlameRef.current.material as THREE.MeshStandardMaterial;
+        mat.emissiveIntensity = isFeverMode
+          ? 2.0 + Math.sin(boosterPhaseRef.current * 2) * 0.5
+          : 1.0 + Math.sin(boosterPhaseRef.current * 2) * 0.3;
+      }
+    }
 
     // Position update
     const currentX = groupRef.current.position.x;
@@ -150,7 +175,7 @@ export function Player() {
       bodyRef.current.position.y = THREE.MathUtils.lerp(bodyRef.current.position.y, 0, delta * 15);
     }
 
-    // Exhaustion animation (energy depleted - kneel down from tiredness)
+    // Exhaustion animation (health depleted - kneel down from tiredness)
     if (isExhausted && !isCrashing) {
       exhaustionPhaseRef.current += delta * 1.5; // Slower for dramatic effect
       const exhaustProgress = Math.min(exhaustionPhaseRef.current / 1.5, 1); // 1.5 seconds total
@@ -324,7 +349,7 @@ export function Player() {
 
   const accentColor = getAccentColor();
   const visorColor = getVisorColor();
-  const emissiveIntensity = isCrashing ? 2.0 : isExhausted ? 0.1 : isFeverMode ? 1.2 : isLowEnergy ? 0.8 : 0.5;
+  const emissiveIntensity = isCrashing ? 2.0 : isExhausted ? 0.1 : isFeverMode ? 1.2 : isLowHealth ? 0.8 : 0.5;
 
   return (
     <group ref={groupRef} position={[0, 0.5, 0]}>
@@ -491,28 +516,130 @@ export function Player() {
           </mesh>
         </group>
 
-        {/* Back booster */}
-        <group position={[0, 0.3, -0.25]}>
-          <mesh>
-            <cylinderGeometry args={[0.08, 0.12, 0.15, 8]} />
+        {/* Shoulder armor - left */}
+        <mesh position={[-0.32, 0.55, 0]} castShadow>
+          <boxGeometry args={[0.12, 0.08, 0.18]} />
+          <meshStandardMaterial
+            color={SUIT_ARMOR}
+            emissive={accentColor}
+            emissiveIntensity={0.15}
+            metalness={0.7}
+            roughness={0.3}
+          />
+        </mesh>
+
+        {/* Shoulder armor - right */}
+        <mesh position={[0.32, 0.55, 0]} castShadow>
+          <boxGeometry args={[0.12, 0.08, 0.18]} />
+          <meshStandardMaterial
+            color={SUIT_ARMOR}
+            emissive={accentColor}
+            emissiveIntensity={0.15}
+            metalness={0.7}
+            roughness={0.3}
+          />
+        </mesh>
+
+        {/* Back booster pack */}
+        <group position={[0, 0.35, -0.22]}>
+          {/* Main booster housing */}
+          <mesh ref={boosterRef}>
+            <boxGeometry args={[0.25, 0.2, 0.12]} />
             <meshStandardMaterial
-              color={SUIT_DARK}
-              emissive={accentColor}
-              emissiveIntensity={isFeverMode ? 0.5 : 0.2}
-              metalness={0.6}
+              color={SUIT_ARMOR}
+              emissive={isFeverMode ? FEVER_COLOR : accentColor}
+              emissiveIntensity={isFeverMode ? 0.4 : 0.15}
+              metalness={0.7}
               roughness={0.3}
             />
           </mesh>
+
+          {/* Booster vents */}
+          {[-0.08, 0.08].map((x, i) => (
+            <mesh key={`vent-${i}`} position={[x, -0.08, -0.02]}>
+              <cylinderGeometry args={[0.04, 0.05, 0.08, 8]} />
+              <meshStandardMaterial
+                color="#1a1a1a"
+                emissive={isFeverMode ? FEVER_COLOR : BOOSTER_FLAME}
+                emissiveIntensity={isFeverMode ? 1.0 : 0.5}
+                metalness={0.5}
+                roughness={0.4}
+              />
+            </mesh>
+          ))}
+
+          {/* Booster flame (animated) */}
+          <mesh
+            ref={boosterFlameRef}
+            position={[0, -0.18, -0.02]}
+            rotation={[Math.PI, 0, 0]}
+          >
+            <coneGeometry args={[0.12, 0.25, 8]} />
+            <meshStandardMaterial
+              color={isFeverMode ? FEVER_COLOR : BOOSTER_FLAME}
+              emissive={isFeverMode ? FEVER_COLOR : BOOSTER_FLAME}
+              emissiveIntensity={isFeverMode ? 2.0 : 1.0}
+              transparent
+              opacity={status === 'playing' ? 0.9 : 0.3}
+            />
+          </mesh>
+
+          {/* Inner flame core */}
+          <mesh
+            position={[0, -0.15, -0.02]}
+            rotation={[Math.PI, 0, 0]}
+          >
+            <coneGeometry args={[0.06, 0.15, 6]} />
+            <meshStandardMaterial
+              color="#ffffff"
+              emissive="#ffff88"
+              emissiveIntensity={status === 'playing' ? 1.5 : 0.3}
+              transparent
+              opacity={status === 'playing' ? 0.8 : 0.2}
+            />
+          </mesh>
         </group>
+
+        {/* Belt/hip accent */}
+        <mesh position={[0, 0.12, 0]}>
+          <cylinderGeometry args={[0.22, 0.22, 0.06, 16]} />
+          <meshStandardMaterial
+            color={SUIT_ARMOR}
+            emissive={accentColor}
+            emissiveIntensity={0.2}
+            metalness={0.6}
+            roughness={0.4}
+          />
+        </mesh>
+
+        {/* Belt buckle glow */}
+        <mesh position={[0, 0.12, 0.2]}>
+          <boxGeometry args={[0.1, 0.06, 0.04]} />
+          <meshStandardMaterial
+            color={visorColor}
+            emissive={visorColor}
+            emissiveIntensity={emissiveIntensity * 0.8}
+          />
+        </mesh>
       </group>
 
       {/* Player glow light */}
       <pointLight
         position={[0, 0.5, 0.3]}
         color={visorColor}
-        intensity={isFeverMode ? 2.5 : isLowEnergy ? 1.5 : 0.8}
-        distance={isFeverMode ? 6 : 4}
+        intensity={isFeverMode ? 3.0 : isLowHealth ? 1.5 : 1.0}
+        distance={isFeverMode ? 7 : 5}
       />
+
+      {/* Booster glow light */}
+      {status === 'playing' && (
+        <pointLight
+          position={[0, 0.2, -0.4]}
+          color={isFeverMode ? FEVER_COLOR : BOOSTER_FLAME}
+          intensity={isFeverMode ? 3.0 : 1.5}
+          distance={isFeverMode ? 5 : 3}
+        />
+      )}
     </group>
   );
 }

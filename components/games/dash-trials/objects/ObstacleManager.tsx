@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
 import { Obstacle, Coin, HealthPotion, ObstacleType, PotionSize } from './Obstacle';
 import { useGameStore, DifficultyLevel } from '../hooks/useGameStore';
 
@@ -65,20 +66,16 @@ function generateObstaclePattern(
   const types = getObstacleTypesForDifficulty(difficulty);
   const segmentLength = 100;
 
-  const baseInterval = difficulty === 'tutorial' ? 20 :
-                       difficulty === 'easy' ? 15 :
-                       difficulty === 'medium' ? 12 :
-                       difficulty === 'hard' ? 10 : 8;
+  const baseInterval = difficulty === 'tutorial' ? 18 :
+                       difficulty === 'easy' ? 14 :
+                       difficulty === 'medium' ? 11 :
+                       difficulty === 'hard' ? 9 : 7;
 
-  let currentDistance = startDistance;
+  // Start first obstacle closer (8-12m from segment start instead of full interval)
+  let currentDistance = startDistance + 8 + Math.random() * 4;
   let id = Date.now() + Math.random() * 10000;
 
   while (currentDistance < startDistance + segmentLength) {
-    const interval = baseInterval + Math.random() * 10 * (1 - spawnRate);
-    currentDistance += interval;
-
-    if (currentDistance >= startDistance + segmentLength) break;
-
     const type = types[Math.floor(Math.random() * types.length)];
     let lane = [0, -1, 1][Math.floor(Math.random() * 3)] as -1 | 0 | 1;
 
@@ -104,7 +101,10 @@ function generateObstaclePattern(
         distance: currentDistance,
       });
 
-      continue; // Skip adding more obstacles at this distance
+      // Increment distance and continue
+      const interval = baseInterval + Math.random() * 10 * (1 - spawnRate);
+      currentDistance += interval;
+      continue;
     }
 
     obstacles.push({
@@ -134,6 +134,10 @@ function generateObstaclePattern(
         }
       }
     }
+
+    // Increment distance for next obstacle
+    const interval = baseInterval + Math.random() * 10 * (1 - spawnRate);
+    currentDistance += interval;
   }
 
   return obstacles;
@@ -144,13 +148,14 @@ function generateCoins(startDistance: number, difficulty: DifficultyLevel): Coin
   const coins: CoinData[] = [];
   const segmentLength = 100;
 
-  // Increased intervals for less frequent coins
-  const coinInterval = difficulty === 'tutorial' ? 18 :
-                       difficulty === 'easy' ? 15 :
-                       difficulty === 'medium' ? 13 :
-                       difficulty === 'hard' ? 11 : 10;
+  // Coin intervals
+  const coinInterval = difficulty === 'tutorial' ? 16 :
+                       difficulty === 'easy' ? 14 :
+                       difficulty === 'medium' ? 12 :
+                       difficulty === 'hard' ? 10 : 9;
 
-  let currentDistance = startDistance + 10;
+  // Start coins closer (5-8m from segment start)
+  let currentDistance = startDistance + 5 + Math.random() * 3;
   let id = Date.now() + Math.random() * 10000;
 
   while (currentDistance < startDistance + segmentLength) {
@@ -245,10 +250,17 @@ function generatePotions(
 }
 
 export function ObstacleManager() {
-  const distance = useGameStore((state) => state.distance);
-  const difficulty = useGameStore((state) => state.difficulty);
-  const obstacleSpawnRate = useGameStore((state) => state.obstacleSpawnRate);
+  // Only subscribe to status for conditional rendering
   const status = useGameStore((state) => state.status);
+
+  // Use ref for frequently changing values to avoid re-renders
+  const storeRef = useRef(useGameStore.getState());
+  useEffect(() => {
+    const unsubscribe = useGameStore.subscribe((state) => {
+      storeRef.current = state;
+    });
+    return unsubscribe;
+  }, []);
 
   const [obstacles, setObstacles] = useState<ObstacleData[]>([]);
   const [coins, setCoins] = useState<CoinData[]>([]);
@@ -257,6 +269,8 @@ export function ObstacleManager() {
   const collectedCoinsRef = useRef<Set<string>>(new Set());
   const collectedPotionsRef = useRef<Set<string>>(new Set());
   const passedObstaclesRef = useRef<Set<string>>(new Set());
+  const lastCheckTimeRef = useRef(0);
+  const GENERATION_THROTTLE_MS = 100; // Only check every 100ms for performance
 
   // Reset and generate initial obstacles when game starts
   useEffect(() => {
@@ -285,37 +299,60 @@ export function ObstacleManager() {
     }
   }, [status]);
 
-  // Dynamically generate more obstacles as player progresses
-  useEffect(() => {
+  // Dynamically generate more obstacles as player progresses (throttled for performance)
+  useFrame((state) => {
     if (status !== 'playing') return;
 
+    // Throttle: only check every GENERATION_THROTTLE_MS
+    const now = state.clock.elapsedTime * 1000;
+    if (now - lastCheckTimeRef.current < GENERATION_THROTTLE_MS) return;
+    lastCheckTimeRef.current = now;
+
+    const { distance, difficulty, elapsedTime } = storeRef.current;
     const generateAheadDistance = 150;
 
+    // Only update state when new generation is needed
     if (distance + generateAheadDistance > lastGeneratedDistance.current) {
       const newSegmentStart = lastGeneratedDistance.current;
 
-      const newObstacles = generateObstaclePattern(newSegmentStart, difficulty, obstacleSpawnRate);
+      // Calculate spawn rate based on elapsed time
+      const spawnRate = Math.min(0.8, 0.4 + (elapsedTime / 120) * 0.4);
+
+      const newObstacles = generateObstaclePattern(newSegmentStart, difficulty, spawnRate);
       const newCoins = generateCoins(newSegmentStart, difficulty);
       const newPotions = generatePotions(newSegmentStart, difficulty, newObstacles);
 
+      // Batch state updates
       setObstacles(prev => {
         const filtered = prev.filter(obs => obs.distance > distance - 30);
+        const filteredIds = new Set(filtered.map(o => o.id));
+        passedObstaclesRef.current.forEach(id => {
+          if (!filteredIds.has(id)) passedObstaclesRef.current.delete(id);
+        });
         return [...filtered, ...newObstacles];
       });
 
       setCoins(prev => {
         const filtered = prev.filter(coin => coin.distance > distance - 30);
+        const filteredIds = new Set(filtered.map(c => c.id));
+        collectedCoinsRef.current.forEach(id => {
+          if (!filteredIds.has(id)) collectedCoinsRef.current.delete(id);
+        });
         return [...filtered, ...newCoins];
       });
 
       setPotions(prev => {
         const filtered = prev.filter(potion => potion.distance > distance - 30);
+        const filteredIds = new Set(filtered.map(p => p.id));
+        collectedPotionsRef.current.forEach(id => {
+          if (!filteredIds.has(id)) collectedPotionsRef.current.delete(id);
+        });
         return [...filtered, ...newPotions];
       });
 
       lastGeneratedDistance.current = newSegmentStart + 100;
     }
-  }, [distance, difficulty, obstacleSpawnRate, status]);
+  });
 
   const handleObstaclePassed = useCallback((id: string) => {
     if (!passedObstaclesRef.current.has(id)) {
@@ -342,45 +379,62 @@ export function ObstacleManager() {
     }
   }, []);
 
-  const visibleObstacles = obstacles.filter(
-    obs => obs.distance > distance - 15 && obs.distance < distance + 80
-  );
-  const visibleCoins = coins.filter(
-    coin => coin.distance > distance - 15 && coin.distance < distance + 80 &&
-            !collectedCoinsRef.current.has(coin.id)
-  );
-  const visiblePotions = potions.filter(
-    potion => potion.distance > distance - 15 && potion.distance < distance + 80 &&
-              !collectedPotionsRef.current.has(potion.id)
-  );
+  // Memoize callbacks with id to avoid inline arrow functions
+  const obstacleCallbacks = useMemo(() => {
+    const callbacks: Record<string, { onPassed: () => void; onCollision: () => void }> = {};
+    obstacles.forEach(obs => {
+      callbacks[obs.id] = {
+        onPassed: () => handleObstaclePassed(obs.id),
+        onCollision: handleCollision,
+      };
+    });
+    return callbacks;
+  }, [obstacles, handleObstaclePassed, handleCollision]);
 
+  const coinCallbacks = useMemo(() => {
+    const callbacks: Record<string, () => void> = {};
+    coins.forEach(coin => {
+      callbacks[coin.id] = () => handleCoinCollect(coin.id);
+    });
+    return callbacks;
+  }, [coins, handleCoinCollect]);
+
+  const potionCallbacks = useMemo(() => {
+    const callbacks: Record<string, () => void> = {};
+    potions.forEach(potion => {
+      callbacks[potion.id] = () => handlePotionCollect(potion.id, potion.size);
+    });
+    return callbacks;
+  }, [potions, handlePotionCollect]);
+
+  // Children handle their own visibility check via initialRelativeZ
   return (
     <group>
-      {visibleObstacles.map((obs) => (
+      {obstacles.map((obs) => (
         <Obstacle
           key={obs.id}
           type={obs.type}
           lane={obs.lane}
           distance={obs.distance}
-          onPassed={() => handleObstaclePassed(obs.id)}
-          onCollision={handleCollision}
+          onPassed={obstacleCallbacks[obs.id]?.onPassed}
+          onCollision={obstacleCallbacks[obs.id]?.onCollision}
         />
       ))}
-      {visibleCoins.map((coin) => (
+      {coins.map((coin) => (
         <Coin
           key={coin.id}
           lane={coin.lane}
           distance={coin.distance}
-          onCollect={() => handleCoinCollect(coin.id)}
+          onCollect={coinCallbacks[coin.id]}
         />
       ))}
-      {visiblePotions.map((potion) => (
+      {potions.map((potion) => (
         <HealthPotion
           key={potion.id}
           lane={potion.lane}
           distance={potion.distance}
           size={potion.size}
-          onCollect={() => handlePotionCollect(potion.id, potion.size)}
+          onCollect={potionCallbacks[potion.id]}
         />
       ))}
     </group>

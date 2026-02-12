@@ -1,11 +1,18 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useMemo, useEffect, memo, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '../hooks/useGameStore';
 
 const LANE_WIDTH = 2.5;
+
+// Warning indicator colors
+const WARNING_COLORS = {
+  jump: '#ff4444',    // Red for jump obstacles
+  slide: '#4488ff',   // Blue for slide obstacles
+  avoid: '#ffaa00',   // Orange for avoid obstacles
+};
 
 export type ObstacleType = 'low' | 'high' | 'side-left' | 'side-right' | 'side-center' | 'double-lane' | 'moving';
 
@@ -17,18 +24,32 @@ interface ObstacleProps {
   onCollision: () => void;
 }
 
-export function Obstacle({ type, lane, distance: spawnDistance, onPassed, onCollision }: ObstacleProps) {
+export const Obstacle = memo(function Obstacle({ type, lane, distance: spawnDistance, onPassed, onCollision }: ObstacleProps) {
   const meshRef = useRef<THREE.Mesh>(null);
+  const glowRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
   const passedRef = useRef(false);
-  const [movingOffset, setMovingOffset] = useState(0);
+  const movingOffsetRef = useRef(0);
+  const pulseRef = useRef(0);
 
-  const distance = useGameStore((state) => state.distance);
-  const playerLane = useGameStore((state) => state.playerLane);
-  const playerAction = useGameStore((state) => state.playerAction);
-  const isFeverMode = useGameStore((state) => state.isFeverMode);
+  // Only subscribe to status for conditional rendering
   const status = useGameStore((state) => state.status);
 
-  const relativeZ = spawnDistance - distance;
+  // Use ref to access store values without causing re-renders
+  const storeRef = useRef(useGameStore.getState());
+  useEffect(() => {
+    const unsubscribe = useGameStore.subscribe((state) => {
+      storeRef.current = state;
+    });
+    return unsubscribe;
+  }, []);
+
+  // Warning indicator type
+  const warningType = useMemo(() => {
+    if (type === 'low') return 'jump';
+    if (type === 'high') return 'slide';
+    return 'avoid';
+  }, [type]);
 
   // Obstacle dimensions based on type
   const getDimensions = () => {
@@ -59,31 +80,35 @@ export function Obstacle({ type, lane, distance: spawnDistance, onPassed, onColl
   const baseY = type === 'high' ? 1.8 : height / 2;
   const baseX = lane * LANE_WIDTH;
 
-  // Animation for moving obstacles
-  useFrame((state) => {
-    if (type === 'moving' && status === 'playing') {
-      const newOffset = Math.sin(state.clock.elapsedTime * 3) * LANE_WIDTH;
-      setMovingOffset(newOffset);
+  // Animation for moving obstacles and pulsing glow + position updates
+  useFrame((state, delta) => {
+    if (!groupRef.current) return;
+    const { status: currentStatus, distance, isFeverMode, playerLane, playerAction } = storeRef.current;
+
+    // Update position based on current distance
+    const relativeZ = spawnDistance - distance;
+    groupRef.current.position.z = -relativeZ;
+
+    if (currentStatus !== 'playing') return;
+
+    // Update pulse phase
+    pulseRef.current += delta * 6;
+    const pulseIntensity = 0.3 + Math.sin(pulseRef.current) * 0.2;
+
+    // Animate glow intensity
+    if (glowRef.current?.material && 'emissiveIntensity' in glowRef.current.material) {
+      const mat = glowRef.current.material as THREE.MeshStandardMaterial;
+      mat.emissiveIntensity = 0.6 + pulseIntensity;
     }
-  });
 
-  // Current X position
-  const currentX = type === 'moving' ? baseX + movingOffset : baseX;
+    // Moving obstacle animation
+    if (type === 'moving') {
+      movingOffsetRef.current = Math.sin(state.clock.elapsedTime * 3) * LANE_WIDTH;
+      groupRef.current.position.x = baseX + movingOffsetRef.current;
+    }
 
-  // Calculate which lane the moving obstacle is currently in
-  const getCurrentLane = (): -1 | 0 | 1 => {
-    if (type !== 'moving') return lane;
-    const effectiveX = currentX;
-    if (effectiveX < -LANE_WIDTH / 2) return -1;
-    if (effectiveX > LANE_WIDTH / 2) return 1;
-    return 0;
-  };
-
-  // Check collision
-  useFrame(() => {
-    if (status !== 'playing' || isFeverMode) return;
-
-    if (relativeZ < 1.5 && relativeZ > -1.5 && !passedRef.current) {
+    // Collision detection
+    if (!isFeverMode && relativeZ < 1.5 && relativeZ > -1.5 && !passedRef.current) {
       const currentObstacleLane = getCurrentLane();
       let isInSameLane = false;
 
@@ -118,13 +143,28 @@ export function Obstacle({ type, lane, distance: spawnDistance, onPassed, onColl
       }
     }
 
+    // Mark as passed
     if (relativeZ < -2 && !passedRef.current) {
       passedRef.current = true;
       onPassed();
     }
   });
 
-  if (relativeZ > 80 || relativeZ < -10) return null;
+  // Current X position (initial value, moving obstacles update via ref)
+  const currentX = baseX;
+
+  // Calculate which lane the moving obstacle is currently in
+  const getCurrentLane = (): -1 | 0 | 1 => {
+    if (type !== 'moving') return lane;
+    const effectiveX = baseX + movingOffsetRef.current;
+    if (effectiveX < -LANE_WIDTH / 2) return -1;
+    if (effectiveX > LANE_WIDTH / 2) return 1;
+    return 0;
+  };
+
+  // Only render if within visible range (use initial check, position is updated in useFrame)
+  const initialRelativeZ = spawnDistance - storeRef.current.distance;
+  if (initialRelativeZ > 160 || initialRelativeZ < -15) return null;
 
   // Color and glow based on type
   const getColorConfig = () => {
@@ -156,7 +196,38 @@ export function Obstacle({ type, lane, distance: spawnDistance, onPassed, onColl
   // Render hurdle-style for high obstacles (slide under)
   if (type === 'high') {
     return (
-      <group position={[currentX, 0, -relativeZ]}>
+      <group ref={groupRef} position={[currentX, 0, -initialRelativeZ]}>
+        {/* Floor warning indicator - slide zone */}
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, 0.01, 1.5]}
+        >
+          <planeGeometry args={[width, 2.5]} />
+          <meshStandardMaterial
+            color={WARNING_COLORS.slide}
+            emissive={WARNING_COLORS.slide}
+            emissiveIntensity={0.4}
+            transparent
+            opacity={0.3}
+          />
+        </mesh>
+
+        {/* Floor warning stripes */}
+        {[0.5, 1.0, 1.5, 2.0].map((z) => (
+          <mesh
+            key={`stripe-${z}`}
+            rotation={[-Math.PI / 2, 0, 0]}
+            position={[0, 0.015, z]}
+          >
+            <planeGeometry args={[width - 0.3, 0.08]} />
+            <meshStandardMaterial
+              color="#ffffff"
+              emissive={WARNING_COLORS.slide}
+              emissiveIntensity={0.6}
+            />
+          </mesh>
+        ))}
+
         {/* Hurdle bar - floating horizontal bar */}
         <mesh position={[0, baseY, 0]} ref={meshRef} castShadow>
           <boxGeometry args={[width, height, depth]} />
@@ -164,42 +235,64 @@ export function Obstacle({ type, lane, distance: spawnDistance, onPassed, onColl
             color={colorConfig.main}
             emissive={colorConfig.main}
             emissiveIntensity={colorConfig.emissive}
-            metalness={0.4}
-            roughness={0.5}
+            metalness={0.5}
+            roughness={0.4}
           />
         </mesh>
 
-        {/* Left leg */}
+        {/* Left leg with glow strip */}
         <mesh position={[-width / 2 + 0.1, baseY / 2, 0]} castShadow>
-          <boxGeometry args={[0.1, baseY, 0.1]} />
+          <boxGeometry args={[0.12, baseY, 0.12]} />
           <meshStandardMaterial
-            color={colorConfig.edge}
-            emissive={colorConfig.edge}
-            emissiveIntensity={0.3}
-            metalness={0.5}
+            color="#1a1a2a"
+            metalness={0.6}
             roughness={0.4}
           />
         </mesh>
+        <mesh position={[-width / 2 + 0.1, baseY / 2, 0.07]}>
+          <boxGeometry args={[0.04, baseY, 0.02]} />
+          <meshStandardMaterial
+            color={colorConfig.edge}
+            emissive={colorConfig.edge}
+            emissiveIntensity={0.6}
+          />
+        </mesh>
 
-        {/* Right leg */}
+        {/* Right leg with glow strip */}
         <mesh position={[width / 2 - 0.1, baseY / 2, 0]} castShadow>
-          <boxGeometry args={[0.1, baseY, 0.1]} />
+          <boxGeometry args={[0.12, baseY, 0.12]} />
           <meshStandardMaterial
-            color={colorConfig.edge}
-            emissive={colorConfig.edge}
-            emissiveIntensity={0.3}
-            metalness={0.5}
+            color="#1a1a2a"
+            metalness={0.6}
             roughness={0.4}
           />
         </mesh>
+        <mesh position={[width / 2 - 0.1, baseY / 2, 0.07]}>
+          <boxGeometry args={[0.04, baseY, 0.02]} />
+          <meshStandardMaterial
+            color={colorConfig.edge}
+            emissive={colorConfig.edge}
+            emissiveIntensity={0.6}
+          />
+        </mesh>
 
-        {/* Top glow line */}
-        <mesh position={[0, baseY + height / 2 + 0.02, 0]}>
-          <boxGeometry args={[width + 0.05, 0.04, depth + 0.05]} />
+        {/* Top glow line with pulse ref */}
+        <mesh ref={glowRef} position={[0, baseY + height / 2 + 0.03, 0]}>
+          <boxGeometry args={[width + 0.1, 0.06, depth + 0.1]} />
           <meshStandardMaterial
             color={colorConfig.edge}
             emissive={colorConfig.edge}
             emissiveIntensity={0.8}
+          />
+        </mesh>
+
+        {/* Bottom bar glow */}
+        <mesh position={[0, baseY - height / 2 - 0.02, 0]}>
+          <boxGeometry args={[width + 0.05, 0.04, depth + 0.05]} />
+          <meshStandardMaterial
+            color={colorConfig.edge}
+            emissive={colorConfig.edge}
+            emissiveIntensity={0.5}
           />
         </mesh>
       </group>
@@ -207,23 +300,66 @@ export function Obstacle({ type, lane, distance: spawnDistance, onPassed, onColl
   }
 
   // Regular ground obstacles (low, side-center, double-lane, moving)
+  const warningColor = WARNING_COLORS[warningType];
+
   return (
-    <group position={[currentX, baseY, -relativeZ]}>
+    <group ref={groupRef} position={[currentX, 0, -initialRelativeZ]}>
+      {/* Floor warning indicator */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.01, 1.5]}
+      >
+        <planeGeometry args={[width + 0.5, 2.5]} />
+        <meshStandardMaterial
+          color={warningColor}
+          emissive={warningColor}
+          emissiveIntensity={0.3}
+          transparent
+          opacity={0.25}
+        />
+      </mesh>
+
+      {/* Floor warning stripes */}
+      {type === 'low' && [0.5, 1.0, 1.5, 2.0].map((z) => (
+        <mesh
+          key={`stripe-${z}`}
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, 0.015, z]}
+        >
+          <planeGeometry args={[width - 0.3, 0.08]} />
+          <meshStandardMaterial
+            color="#ffffff"
+            emissive={warningColor}
+            emissiveIntensity={0.5}
+          />
+        </mesh>
+      ))}
+
       {/* Main obstacle body */}
-      <mesh ref={meshRef} castShadow>
+      <mesh ref={meshRef} position={[0, baseY, 0]} castShadow>
         <boxGeometry args={[width, height, depth]} />
         <meshStandardMaterial
           color={colorConfig.main}
           emissive={colorConfig.main}
           emissiveIntensity={colorConfig.emissive}
-          metalness={0.3}
-          roughness={0.6}
+          metalness={0.4}
+          roughness={0.5}
         />
       </mesh>
 
-      {/* Top edge glow */}
-      <mesh position={[0, height / 2 + 0.02, 0]}>
-        <boxGeometry args={[width + 0.08, 0.04, depth + 0.08]} />
+      {/* Inner dark core for depth */}
+      <mesh position={[0, baseY, 0]}>
+        <boxGeometry args={[width - 0.15, height - 0.15, depth + 0.01]} />
+        <meshStandardMaterial
+          color="#1a1a25"
+          metalness={0.3}
+          roughness={0.7}
+        />
+      </mesh>
+
+      {/* Top edge glow with pulse */}
+      <mesh ref={glowRef} position={[0, baseY + height / 2 + 0.03, 0]}>
+        <boxGeometry args={[width + 0.1, 0.06, depth + 0.1]} />
         <meshStandardMaterial
           color={colorConfig.edge}
           emissive={colorConfig.edge}
@@ -232,19 +368,58 @@ export function Obstacle({ type, lane, distance: spawnDistance, onPassed, onColl
       </mesh>
 
       {/* Front edge glow */}
-      <mesh position={[0, 0, depth / 2 + 0.02]}>
-        <boxGeometry args={[width + 0.05, height, 0.03]} />
+      <mesh position={[0, baseY, depth / 2 + 0.03]}>
+        <boxGeometry args={[width + 0.08, height + 0.08, 0.04]} />
         <meshStandardMaterial
           color={colorConfig.edge}
           emissive={colorConfig.edge}
-          emissiveIntensity={0.5}
+          emissiveIntensity={0.6}
           transparent
-          opacity={0.7}
+          opacity={0.8}
         />
       </mesh>
+
+      {/* Side edge accents */}
+      {[-1, 1].map((side) => (
+        <mesh
+          key={`side-${side}`}
+          position={[side * (width / 2 + 0.03), baseY, 0]}
+        >
+          <boxGeometry args={[0.04, height, depth]} />
+          <meshStandardMaterial
+            color={colorConfig.edge}
+            emissive={colorConfig.edge}
+            emissiveIntensity={0.4}
+          />
+        </mesh>
+      ))}
+
+      {/* Bottom ground glow */}
+      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[width + 0.3, depth + 0.3]} />
+        <meshStandardMaterial
+          color={colorConfig.main}
+          emissive={colorConfig.main}
+          emissiveIntensity={0.3}
+          transparent
+          opacity={0.5}
+        />
+      </mesh>
+
+      {/* Hazard symbol for jump obstacles */}
+      {type === 'low' && (
+        <mesh position={[0, baseY + height / 2 - 0.1, depth / 2 + 0.04]}>
+          <boxGeometry args={[0.4, 0.08, 0.01]} />
+          <meshStandardMaterial
+            color="#ffffff"
+            emissive="#ffffff"
+            emissiveIntensity={0.8}
+          />
+        </mesh>
+      )}
     </group>
   );
-}
+});
 
 // Coin component - for fever mode only
 interface CoinProps {
@@ -253,82 +428,98 @@ interface CoinProps {
   onCollect: () => void;
 }
 
-export function Coin({ lane, distance: spawnDistance, onCollect }: CoinProps) {
+export const Coin = memo(function Coin({ lane, distance: spawnDistance, onCollect }: CoinProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const collectedRef = useRef(false);
-  const distance = useGameStore((state) => state.distance);
-  const playerLane = useGameStore((state) => state.playerLane);
+  const [collected, setCollected] = useState(false);
+
+  // Only subscribe to status for conditional rendering
   const status = useGameStore((state) => state.status);
-  const consecutiveCoins = useGameStore((state) => state.consecutiveCoins);
 
-  const relativeZ = spawnDistance - distance;
+  // Use ref for frequently changing values
+  const storeRef = useRef(useGameStore.getState());
+  useEffect(() => {
+    const unsubscribe = useGameStore.subscribe((state) => {
+      storeRef.current = state;
+    });
+    return unsubscribe;
+  }, []);
+
   const x = lane * LANE_WIDTH;
+  const initialRelativeZ = spawnDistance - storeRef.current.distance;
 
-  // Rotation animation - rotate the whole group
+  // Rotation animation + position update + collection check
   useFrame((state, delta) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y += delta * 3;
+    if (!groupRef.current || collected) return;
+    const { distance, playerLane, status: currentStatus, consecutiveCoins } = storeRef.current;
+    const relativeZ = spawnDistance - distance;
+
+    // Update position
+    groupRef.current.position.z = -relativeZ;
+    groupRef.current.rotation.y += delta * 3;
+
+    // Update glow intensity based on consecutive coins
+    const glowIntensity = 0.6 + (consecutiveCoins / 5) * 0.4;
+    const mesh = groupRef.current.children[0] as THREE.Mesh;
+    if (mesh?.material && 'emissiveIntensity' in mesh.material) {
+      (mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = glowIntensity;
     }
-  });
 
-  // Collection check
-  useFrame(() => {
-    if (status !== 'playing' || collectedRef.current) return;
-
+    // Collection check
+    if (currentStatus !== 'playing') return;
     if (relativeZ < 1.5 && relativeZ > -1.5 && lane === playerLane) {
-      collectedRef.current = true;
+      setCollected(true);
       onCollect();
     }
   });
 
-  if (relativeZ > 80 || relativeZ < -10 || collectedRef.current) return null;
+  if (initialRelativeZ > 160 || initialRelativeZ < -15 || collected) return null;
 
-  // Glow more intensely as fever approaches
-  const glowIntensity = 0.6 + (consecutiveCoins / 5) * 0.4;
+  // Initial glow intensity (updated in useFrame)
+  const initialGlowIntensity = 0.6 + (storeRef.current.consecutiveCoins / 5) * 0.4;
 
   return (
-    <group ref={groupRef} position={[x, 1.0, -relativeZ]}>
+    <group ref={groupRef} position={[x, 1.0, -initialRelativeZ]}>
       {/* Simple coin - single cylinder */}
       <mesh rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.3, 0.3, 0.06, 20]} />
         <meshStandardMaterial
           color="#ffdd00"
           emissive="#ffdd00"
-          emissiveIntensity={glowIntensity}
+          emissiveIntensity={initialGlowIntensity}
           metalness={0.95}
           roughness={0.05}
         />
       </mesh>
     </group>
   );
-}
+});
 
 // Potion size types
 export type PotionSize = 'small' | 'normal' | 'large';
 
-// Potion configuration based on size
+// Potion configuration based on size - Pink/Magenta for visibility against green track
 const POTION_CONFIG = {
   small: {
     scale: 0.6,
-    color: '#66ff99',      // Light green
-    glowIntensity: 0.6,
+    color: '#ff66aa',      // Light pink
+    glowIntensity: 0.8,
     label: 'S',
   },
   normal: {
     scale: 1.0,
-    color: '#00ff66',      // Green
-    glowIntensity: 0.8,
+    color: '#ff44cc',      // Bright magenta-pink
+    glowIntensity: 1.0,
     label: 'M',
   },
   large: {
     scale: 1.4,
-    color: '#00ffaa',      // Bright cyan-green
-    glowIntensity: 1.2,
+    color: '#ff22ff',      // Hot magenta
+    glowIntensity: 1.4,
     label: 'L',
   },
 };
 
-// Health Potion component - for energy recovery
+// Health Potion component - for health recovery
 interface HealthPotionProps {
   lane: -1 | 0 | 1;
   distance: number;
@@ -336,47 +527,57 @@ interface HealthPotionProps {
   onCollect: () => void;
 }
 
-export function HealthPotion({ lane, distance: spawnDistance, size = 'normal', onCollect }: HealthPotionProps) {
+export const HealthPotion = memo(function HealthPotion({ lane, distance: spawnDistance, size = 'normal', onCollect }: HealthPotionProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const collectedRef = useRef(false);
-  const distance = useGameStore((state) => state.distance);
-  const playerLane = useGameStore((state) => state.playerLane);
+  const [collected, setCollected] = useState(false);
+
+  // Only subscribe to status for conditional rendering
   const status = useGameStore((state) => state.status);
-  const energy = useGameStore((state) => state.energy);
 
-  const relativeZ = spawnDistance - distance;
+  // Use ref for frequently changing values
+  const storeRef = useRef(useGameStore.getState());
+  useEffect(() => {
+    const unsubscribe = useGameStore.subscribe((state) => {
+      storeRef.current = state;
+    });
+    return unsubscribe;
+  }, []);
+
   const x = lane * LANE_WIDTH;
-
-  // Rotation and floating animation
-  useFrame((state, delta) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y += delta * 2;
-      groupRef.current.position.y = 1.5 + Math.sin(state.clock.elapsedTime * 3) * 0.2;
-    }
-  });
-
-  // Collection check
-  useFrame(() => {
-    if (status !== 'playing' || collectedRef.current) return;
-
-    if (relativeZ < 1.5 && relativeZ > -1.5 && lane === playerLane) {
-      collectedRef.current = true;
-      onCollect();
-    }
-  });
-
-  if (relativeZ > 80 || relativeZ < -10 || collectedRef.current) return null;
+  const initialRelativeZ = spawnDistance - storeRef.current.distance;
 
   // Get size config
   const config = POTION_CONFIG[size];
   const scale = config.scale;
-
-  // Pulse more when player has low energy
-  const pulseIntensity = (energy <= 30 ? 1.5 : 1.0) * config.glowIntensity;
   const POTION_COLOR = config.color;
 
+  // Rotation, floating animation, position update, and collection check
+  useFrame((state, delta) => {
+    if (!groupRef.current || collected) return;
+    const { distance, playerLane, status: currentStatus } = storeRef.current;
+    const relativeZ = spawnDistance - distance;
+
+    // Update position with floating effect
+    groupRef.current.position.z = -relativeZ;
+    groupRef.current.position.y = 1.5 + Math.sin(state.clock.elapsedTime * 3) * 0.2;
+    groupRef.current.rotation.y += delta * 2;
+
+    // Collection check
+    if (currentStatus !== 'playing') return;
+    if (relativeZ < 1.5 && relativeZ > -1.5 && lane === playerLane) {
+      setCollected(true);
+      onCollect();
+    }
+  });
+
+  if (initialRelativeZ > 160 || initialRelativeZ < -15 || collected) return null;
+
+  // Pulse more when player has low health (static for initial render)
+  const initialHealth = storeRef.current.health;
+  const pulseIntensity = (initialHealth <= 30 ? 1.5 : 1.0) * config.glowIntensity;
+
   return (
-    <group ref={groupRef} position={[x, 1.5, -relativeZ]} scale={[scale, scale, scale]}>
+    <group ref={groupRef} position={[x, 1.5, -initialRelativeZ]} scale={[scale, scale, scale]}>
       {/* Potion bottle body */}
       <mesh>
         <capsuleGeometry args={[0.2, 0.3, 8, 16]} />
@@ -391,25 +592,25 @@ export function HealthPotion({ lane, distance: spawnDistance, size = 'normal', o
         />
       </mesh>
 
-      {/* Bottle neck */}
+      {/* Bottle neck - white cap */}
       <mesh position={[0, 0.35, 0]}>
         <cylinderGeometry args={[0.08, 0.12, 0.15, 8]} />
         <meshStandardMaterial
           color="#ffffff"
-          emissive="#00ff66"
-          emissiveIntensity={0.3}
+          emissive={POTION_COLOR}
+          emissiveIntensity={0.4}
           metalness={0.5}
           roughness={0.3}
         />
       </mesh>
 
-      {/* Cross symbol - horizontal */}
+      {/* Cross symbol - horizontal (white on pink) */}
       <mesh position={[0, 0, 0.22]}>
         <boxGeometry args={[0.25, 0.08, 0.02]} />
         <meshStandardMaterial
           color="#ffffff"
           emissive="#ffffff"
-          emissiveIntensity={pulseIntensity * 0.5}
+          emissiveIntensity={pulseIntensity * 0.8}
         />
       </mesh>
 
@@ -419,41 +620,59 @@ export function HealthPotion({ lane, distance: spawnDistance, size = 'normal', o
         <meshStandardMaterial
           color="#ffffff"
           emissive="#ffffff"
-          emissiveIntensity={pulseIntensity * 0.5}
+          emissiveIntensity={pulseIntensity * 0.8}
+        />
+      </mesh>
+
+      {/* Outer glow ring */}
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+        <torusGeometry args={[0.35, 0.03, 8, 16]} />
+        <meshStandardMaterial
+          color={POTION_COLOR}
+          emissive={POTION_COLOR}
+          emissiveIntensity={pulseIntensity * 1.2}
+          transparent
+          opacity={0.7}
         />
       </mesh>
 
       {/* Heart shape glow behind */}
       <mesh position={[0, 0, -0.25]} rotation={[0, Math.PI, 0]}>
-        <sphereGeometry args={[0.15, 8, 8]} />
+        <sphereGeometry args={[0.18, 8, 8]} />
         <meshStandardMaterial
           color={POTION_COLOR}
           emissive={POTION_COLOR}
-          emissiveIntensity={pulseIntensity}
+          emissiveIntensity={pulseIntensity * 1.2}
           transparent
-          opacity={0.5}
+          opacity={0.6}
         />
       </mesh>
 
-      {/* Sparkle particles around potion - reduced for performance */}
-      {[0, Math.PI].map((angle, i) => (
+      {/* Sparkle particles around potion */}
+      {[0, Math.PI / 2, Math.PI, Math.PI * 1.5].map((angle, i) => (
         <mesh
           key={i}
           position={[
-            Math.cos(angle) * 0.4,
-            Math.sin(angle * 2) * 0.2,
-            Math.sin(angle) * 0.4,
+            Math.cos(angle) * 0.45,
+            Math.sin(angle * 2) * 0.25,
+            Math.sin(angle) * 0.45,
           ]}
         >
-          <sphereGeometry args={[0.04, 6, 6]} />
+          <sphereGeometry args={[0.05, 6, 6]} />
           <meshStandardMaterial
             color="#ffffff"
             emissive={POTION_COLOR}
-            emissiveIntensity={1.2}
+            emissiveIntensity={1.5}
           />
         </mesh>
       ))}
-      {/* Removed point light for performance - using emissive materials instead */}
+
+      {/* Point light for visibility */}
+      <pointLight
+        color={POTION_COLOR}
+        intensity={2.5}
+        distance={4}
+      />
     </group>
   );
-}
+});

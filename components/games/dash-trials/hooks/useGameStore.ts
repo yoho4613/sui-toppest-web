@@ -4,18 +4,53 @@ export type Lane = -1 | 0 | 1;
 export type PlayerAction = 'running' | 'jumping' | 'sliding' | 'crashed';
 export type GameStatus = 'menu' | 'countdown' | 'playing' | 'paused' | 'gameover';
 
-// Difficulty levels based on distance
+// Difficulty based on elapsed time (matching Neon Dash)
 export type DifficultyLevel = 'tutorial' | 'easy' | 'medium' | 'hard' | 'extreme';
 
-// Potion size types
+// Potion size types (matching Neon Dash)
 export type PotionSize = 'small' | 'normal' | 'large';
 
-// Energy recovery amounts for each potion size
-const POTION_ENERGY_AMOUNTS: Record<PotionSize, number> = {
-  small: 15,   // 15% energy
-  normal: 30,  // 30% energy
-  large: 50,   // 50% energy
+// Potion heal amounts (matching Neon Dash)
+const POTION_HEAL_AMOUNTS: Record<PotionSize, number> = {
+  small: 15,   // 15% health
+  normal: 30,  // 30% health
+  large: 50,   // 50% health
 };
+
+// Potion spawn weights (matching Neon Dash)
+export const POTION_SPAWN_WEIGHTS: Record<PotionSize, number> = {
+  small: 60,   // 60% chance
+  normal: 30,  // 30% chance
+  large: 10,   // 10% chance
+};
+
+// Game constants (increased for faster gameplay)
+const BASE_SPEED = 22;
+const MAX_SPEED = 45;
+const DIFFICULTY_INCREASE_RATE = 0.0008; // Faster speed increase
+const DISTANCE_MULTIPLIER = 0.5; // Distance counts at 0.5x speed
+
+// Health system (matching Neon Dash)
+const INITIAL_HEALTH = 100;
+const MAX_HEALTH = 100;
+const BASE_HEALTH_DECAY = 1.5;       // HP per second base decay
+const HEALTH_DECAY_INCREASE = 0.02;  // Decay rate increase per second
+
+// Fever mode
+const FEVER_MULTIPLIER = 1.5;
+const CONSECUTIVE_COINS_FOR_FEVER = 5;
+
+// Jump timing (matching Neon Dash)
+const JUMP_DURATION = 400; // ms
+
+// Obstacle spawn thresholds (time-based, matching Neon Dash)
+export const HURDLE_SPAWN_THRESHOLD = 45;  // 45s for hurdle obstacles
+export const MIXED_SPAWN_THRESHOLD = 60;   // 60s for mixed patterns
+export const ADVANCED_SPAWN_THRESHOLD = 90; // 90s for advanced patterns
+export const MOVING_OBSTACLE_DISTANCE = 1500; // 1500m for moving obstacles
+
+// Game over reasons
+export type GameOverReason = 'collision' | 'exhaustion' | null;
 
 interface GameState {
   // Game state
@@ -27,12 +62,11 @@ interface GameState {
   playerAction: PlayerAction;
   playerY: number;
 
-  // Energy system
-  energy: number;
-  maxEnergy: number;
-  energyDrainRate: number;
+  // Health system (replaces energy)
+  health: number;
+  maxHealth: number;
 
-  // Fever mode (triggered by collecting many coins)
+  // Fever mode (triggered by consecutive coins)
   isFeverMode: boolean;
   feverCount: number;
   consecutiveCoins: number;
@@ -43,23 +77,18 @@ interface GameState {
   perfectCount: number;
   coinCount: number;
   potionCount: number;
+  laneChanges: number;
+  dodgeCount: number;
   speed: number;
   baseSpeed: number;
-
-  // Dynamic difficulty config
-  potionEnergyBonus: number;
-  obstacleSpawnRate: number;
 
   // High score
   highScore: number;
 
-  // Crash animation
+  // Crash state
   isCrashing: boolean;
   crashTime: number;
-
-  // Exhaustion animation (energy depleted)
-  isExhausted: boolean;
-  exhaustionTime: number;
+  gameOverReason: GameOverReason;
 
   // Actions
   setStatus: (status: GameStatus) => void;
@@ -71,10 +100,7 @@ interface GameState {
   collectCoin: () => void;
   collectPotion: (size?: PotionSize) => void;
   activateFever: () => void;
-  updateDistance: (delta: number) => void;
-  updateTime: (delta: number) => void;
-  updateEnergy: (delta: number) => void;
-  updateDifficulty: () => void;
+  updateGame: (delta: number) => void;
   triggerCrash: () => void;
   triggerExhaustion: () => void;
   gameOver: () => void;
@@ -82,61 +108,28 @@ interface GameState {
   startGame: () => void;
 }
 
-// Difficulty configuration based on distance
-const DIFFICULTY_CONFIG = {
-  tutorial: {
-    minDistance: 0,
-    maxDistance: 200,
-    speedMultiplier: 1.0,
-    energyDrainRate: 4,
-    potionEnergyBonus: 35, // Potion gives 35% energy
-    obstacleSpawnRate: 0.4, // 40% density
-  },
-  easy: {
-    minDistance: 200,
-    maxDistance: 500,
-    speedMultiplier: 1.15,
-    energyDrainRate: 5,
-    potionEnergyBonus: 32,
-    obstacleSpawnRate: 0.5,
-  },
-  medium: {
-    minDistance: 500,
-    maxDistance: 1000,
-    speedMultiplier: 1.3,
-    energyDrainRate: 6,
-    potionEnergyBonus: 28,
-    obstacleSpawnRate: 0.6,
-  },
-  hard: {
-    minDistance: 1000,
-    maxDistance: 2000,
-    speedMultiplier: 1.5,
-    energyDrainRate: 7,
-    potionEnergyBonus: 25,
-    obstacleSpawnRate: 0.7,
-  },
-  extreme: {
-    minDistance: 2000,
-    maxDistance: Infinity,
-    speedMultiplier: 1.7,
-    energyDrainRate: 8,
-    potionEnergyBonus: 22,
-    obstacleSpawnRate: 0.8,
-  },
-};
+// Store timeout IDs for cleanup
+const timeoutIds: Set<ReturnType<typeof setTimeout>> = new Set();
 
-const BASE_SPEED = 15;
-const MAX_ENERGY = 100;
-const FEVER_MULTIPLIER = 1.5;
-const CONSECUTIVE_COINS_FOR_FEVER = 5;
+function addTimeout(callback: () => void, delay: number): void {
+  const id = setTimeout(() => {
+    timeoutIds.delete(id);
+    callback();
+  }, delay);
+  timeoutIds.add(id);
+}
 
-// Get difficulty level based on distance
-function getDifficultyLevel(distance: number): DifficultyLevel {
-  if (distance < DIFFICULTY_CONFIG.tutorial.maxDistance) return 'tutorial';
-  if (distance < DIFFICULTY_CONFIG.easy.maxDistance) return 'easy';
-  if (distance < DIFFICULTY_CONFIG.medium.maxDistance) return 'medium';
-  if (distance < DIFFICULTY_CONFIG.hard.maxDistance) return 'hard';
+function clearAllTimeouts(): void {
+  timeoutIds.forEach(id => clearTimeout(id));
+  timeoutIds.clear();
+}
+
+// Get difficulty level based on elapsed time (matching Neon Dash thresholds)
+function getDifficultyLevel(elapsedTime: number): DifficultyLevel {
+  if (elapsedTime < 15) return 'tutorial';
+  if (elapsedTime < HURDLE_SPAWN_THRESHOLD) return 'easy';
+  if (elapsedTime < MIXED_SPAWN_THRESHOLD) return 'medium';
+  if (elapsedTime < ADVANCED_SPAWN_THRESHOLD) return 'hard';
   return 'extreme';
 }
 
@@ -160,9 +153,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   playerLane: 0,
   playerAction: 'running',
   playerY: 0,
-  energy: MAX_ENERGY,
-  maxEnergy: MAX_ENERGY,
-  energyDrainRate: DIFFICULTY_CONFIG.tutorial.energyDrainRate,
+  health: INITIAL_HEALTH,
+  maxHealth: MAX_HEALTH,
   isFeverMode: false,
   feverCount: 0,
   consecutiveCoins: 0,
@@ -171,20 +163,26 @@ export const useGameStore = create<GameState>((set, get) => ({
   perfectCount: 0,
   coinCount: 0,
   potionCount: 0,
+  laneChanges: 0,
+  dodgeCount: 0,
   speed: BASE_SPEED,
   baseSpeed: BASE_SPEED,
-  potionEnergyBonus: DIFFICULTY_CONFIG.tutorial.potionEnergyBonus,
-  obstacleSpawnRate: DIFFICULTY_CONFIG.tutorial.obstacleSpawnRate,
   highScore: loadHighScore(),
   isCrashing: false,
   crashTime: 0,
-  isExhausted: false,
-  exhaustionTime: 0,
+  gameOverReason: null,
 
   // Actions
   setStatus: (status) => set({ status }),
 
-  setLane: (lane) => set({ playerLane: lane }),
+  setLane: (lane) => {
+    const { playerAction, status, playerLane } = get();
+    // Can't change lane while jumping or sliding (matching Neon Dash)
+    if (playerAction !== 'running' || status !== 'playing') return;
+    if (lane === playerLane) return;
+
+    set({ playerLane: lane, laneChanges: get().laneChanges + 1 });
+  },
 
   jump: () => {
     const { playerAction, status } = get();
@@ -192,12 +190,12 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     set({ playerAction: 'jumping', playerY: 2 });
 
-    setTimeout(() => {
+    addTimeout(() => {
       const current = get();
       if (current.playerAction === 'jumping') {
         set({ playerAction: 'running', playerY: 0 });
       }
-    }, 600);
+    }, JUMP_DURATION);
   },
 
   startSlide: () => {
@@ -215,12 +213,13 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   addPerfect: () => {
     const current = get();
-    const newCount = current.perfectCount + 1;
-    // Just count perfect, no energy bonus (energy only from potions)
-    set({ perfectCount: newCount });
+    set({
+      perfectCount: current.perfectCount + 1,
+      dodgeCount: current.dodgeCount + 1,
+    });
   },
 
-  // Coins only trigger fever mode (no energy recovery)
+  // Coins trigger fever mode (no health recovery)
   collectCoin: () => {
     const current = get();
     const newCoinCount = current.coinCount + 1;
@@ -241,16 +240,15 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
   },
 
-  // Potions recover energy based on size
+  // Potions recover health based on size (matching Neon Dash)
   collectPotion: (size: PotionSize = 'normal') => {
     const current = get();
-    const newPotionCount = current.potionCount + 1;
-    const energyBonus = POTION_ENERGY_AMOUNTS[size];
-    const newEnergy = Math.min(current.maxEnergy, current.energy + energyBonus);
+    const healAmount = POTION_HEAL_AMOUNTS[size];
+    const newHealth = Math.min(current.maxHealth, current.health + healAmount);
 
     set({
-      potionCount: newPotionCount,
-      energy: newEnergy,
+      potionCount: current.potionCount + 1,
+      health: newHealth,
     });
   },
 
@@ -263,7 +261,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
 
     // Fever ends after 3 seconds
-    setTimeout(() => {
+    addTimeout(() => {
       const current = get();
       set({
         isFeverMode: false,
@@ -273,88 +271,82 @@ export const useGameStore = create<GameState>((set, get) => ({
     }, 3000);
   },
 
-  updateDifficulty: () => {
-    const { distance, isFeverMode } = get();
-    const newDifficulty = getDifficultyLevel(distance);
-    const config = DIFFICULTY_CONFIG[newDifficulty];
+  // Combined update function for distance, time, health, and difficulty (matching Neon Dash)
+  updateGame: (delta) => {
+    const { status, isFeverMode, isCrashing, health } = get();
+    if (status !== 'playing' || isCrashing) return;
 
-    const newBaseSpeed = BASE_SPEED * config.speedMultiplier;
+    const currentState = get();
+
+    // Update elapsed time
+    const newElapsedTime = currentState.elapsedTime + delta;
+
+    // Calculate speed based on distance (matching Neon Dash formula)
+    const multiplier = 1 + currentState.distance * DIFFICULTY_INCREASE_RATE;
+    const calculatedSpeed = Math.min(BASE_SPEED * multiplier, MAX_SPEED);
+    const actualSpeed = isFeverMode ? calculatedSpeed * FEVER_MULTIPLIER : calculatedSpeed;
+
+    // Update distance (0.5x multiplier like Neon Dash)
+    const newDistance = currentState.distance + actualSpeed * delta * DISTANCE_MULTIPLIER;
+
+    // Update difficulty based on elapsed time
+    const newDifficulty = getDifficultyLevel(newElapsedTime);
+
+    // Health decay (faster over time, matching Neon Dash)
+    let newHealth = health;
+    if (!isFeverMode) {
+      const decayRate = BASE_HEALTH_DECAY + (newElapsedTime * HEALTH_DECAY_INCREASE);
+      newHealth = Math.max(0, health - decayRate * delta);
+    }
 
     set({
+      elapsedTime: newElapsedTime,
+      distance: newDistance,
+      speed: actualSpeed,
+      baseSpeed: calculatedSpeed,
       difficulty: newDifficulty,
-      baseSpeed: newBaseSpeed,
-      speed: isFeverMode ? newBaseSpeed * FEVER_MULTIPLIER : newBaseSpeed,
-      energyDrainRate: config.energyDrainRate,
-      potionEnergyBonus: config.potionEnergyBonus,
-      obstacleSpawnRate: config.obstacleSpawnRate,
+      health: newHealth,
     });
-  },
 
-  updateDistance: (delta) => {
-    const { speed, status } = get();
-    if (status !== 'playing') return;
-
-    const newDistance = get().distance + speed * delta;
-    set({ distance: newDistance });
-
-    // Update difficulty based on new distance
-    get().updateDifficulty();
-  },
-
-  updateTime: (delta) => {
-    const { status } = get();
-    if (status !== 'playing') return;
-    set((state) => ({ elapsedTime: state.elapsedTime + delta * 1000 }));
-  },
-
-  updateEnergy: (delta) => {
-    const { status, isFeverMode, energyDrainRate, isExhausted } = get();
-    if (status !== 'playing' || isExhausted) return;
-
-    // Fever mode: no energy drain
-    if (isFeverMode) return;
-
-    const newEnergy = get().energy - energyDrainRate * delta;
-
-    if (newEnergy <= 0) {
-      set({ energy: 0 });
+    // Check for exhaustion (health depleted)
+    if (newHealth <= 0) {
       get().triggerExhaustion();
-    } else {
-      set({ energy: newEnergy });
     }
   },
 
   triggerCrash: () => {
-    const { isCrashing, isExhausted } = get();
-    if (isCrashing || isExhausted) return;
+    const { isCrashing, gameOverReason } = get();
+    if (isCrashing || gameOverReason !== null) return;
 
     set({
       isCrashing: true,
       crashTime: Date.now(),
       playerAction: 'crashed',
+      gameOverReason: 'collision',
     });
 
     // Delay gameover to show crash animation
-    setTimeout(() => {
+    addTimeout(() => {
       get().gameOver();
     }, 1200);
   },
 
   triggerExhaustion: () => {
-    const { isCrashing, isExhausted } = get();
-    if (isCrashing || isExhausted) return;
+    const { isCrashing, gameOverReason } = get();
+    if (isCrashing || gameOverReason !== null) return;
 
     set({
-      isExhausted: true,
-      exhaustionTime: Date.now(),
-      playerAction: 'crashed', // Reuse crashed state for animation
-      speed: 0, // Stop running immediately
+      isCrashing: true,
+      crashTime: Date.now(),
+      playerAction: 'crashed',
+      speed: 0,
+      gameOverReason: 'exhaustion',
     });
 
     // Delay gameover to show exhaustion animation
-    setTimeout(() => {
+    addTimeout(() => {
       get().gameOver();
-    }, 2000); // Longer delay for kneeling animation
+    }, 2000);
   },
 
   gameOver: () => {
@@ -367,11 +359,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({ highScore: finalScore });
     }
 
-    set({ status: 'gameover', isCrashing: false, isExhausted: false });
+    set({ status: 'gameover', isCrashing: false });
   },
 
   startGame: () => {
-    const config = DIFFICULTY_CONFIG.tutorial;
     set({
       status: 'countdown',
       difficulty: 'tutorial',
@@ -381,6 +372,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       coinCount: 0,
       potionCount: 0,
       feverCount: 0,
+      laneChanges: 0,
+      dodgeCount: 0,
       consecutiveCoins: 0,
       isFeverMode: false,
       playerLane: 0,
@@ -388,31 +381,31 @@ export const useGameStore = create<GameState>((set, get) => ({
       playerY: 0,
       speed: BASE_SPEED,
       baseSpeed: BASE_SPEED,
-      energy: MAX_ENERGY,
-      energyDrainRate: config.energyDrainRate,
-      potionEnergyBonus: config.potionEnergyBonus,
-      obstacleSpawnRate: config.obstacleSpawnRate,
+      health: INITIAL_HEALTH,
+      gameOverReason: null,
+      isCrashing: false,
+      crashTime: 0,
     });
 
     // Countdown: 3, 2, 1, GO!
-    setTimeout(() => {
+    addTimeout(() => {
       set({ status: 'playing' });
     }, 3000);
   },
 
-  reset: () =>
+  reset: () => {
+    clearAllTimeouts();
     set({
       status: 'menu',
       difficulty: 'tutorial',
       playerLane: 0,
       playerAction: 'running',
       playerY: 0,
-      energy: MAX_ENERGY,
+      health: INITIAL_HEALTH,
       isFeverMode: false,
       isCrashing: false,
       crashTime: 0,
-      isExhausted: false,
-      exhaustionTime: 0,
+      gameOverReason: null,
       consecutiveCoins: 0,
       distance: 0,
       elapsedTime: 0,
@@ -420,13 +413,24 @@ export const useGameStore = create<GameState>((set, get) => ({
       coinCount: 0,
       potionCount: 0,
       feverCount: 0,
+      laneChanges: 0,
+      dodgeCount: 0,
       speed: BASE_SPEED,
       baseSpeed: BASE_SPEED,
-    }),
+    });
+  },
 }));
 
-// Export difficulty config for ObstacleManager
-export { DIFFICULTY_CONFIG, getDifficultyLevel };
+// Export constants for ObstacleManager
+export {
+  getDifficultyLevel,
+  BASE_SPEED,
+  MAX_SPEED,
+  DIFFICULTY_INCREASE_RATE,
+  DISTANCE_MULTIPLIER,
+  INITIAL_HEALTH,
+  MAX_HEALTH,
+};
 
 // Individual selector hooks for performance
 export const useGameStatus = () => useGameStore((state) => state.status);

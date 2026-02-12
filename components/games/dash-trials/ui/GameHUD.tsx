@@ -5,25 +5,22 @@ import { useGameStore } from '../hooks/useGameStore';
 export function GameHUD() {
   const distance = useGameStore((state) => state.distance);
   const elapsedTime = useGameStore((state) => state.elapsedTime);
-  const energy = useGameStore((state) => state.energy);
-  const maxEnergy = useGameStore((state) => state.maxEnergy);
-  const perfectCount = useGameStore((state) => state.perfectCount);
+  const health = useGameStore((state) => state.health);
+  const maxHealth = useGameStore((state) => state.maxHealth);
   const coinCount = useGameStore((state) => state.coinCount);
   const isFeverMode = useGameStore((state) => state.isFeverMode);
   const consecutiveCoins = useGameStore((state) => state.consecutiveCoins);
   const difficulty = useGameStore((state) => state.difficulty);
   const speed = useGameStore((state) => state.speed);
 
-  // Format time as MM:SS.ms
-  const formatTime = (ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    const milliseconds = Math.floor((ms % 1000) / 10);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(2, '0')}`;
+  // Format time as MM:SS
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const energyPercent = (energy / maxEnergy) * 100;
+  const healthPercent = (health / maxHealth) * 100;
 
   // Difficulty color
   const getDifficultyColor = () => {
@@ -37,102 +34,156 @@ export function GameHUD() {
     }
   };
 
-  // Energy bar color based on level
-  const getEnergyColor = () => {
-    if (isFeverMode) return 'from-purple-500 via-pink-500 to-purple-500';
-    if (energyPercent > 60) return 'from-green-400 to-cyan-400';
-    if (energyPercent > 30) return 'from-yellow-400 to-orange-400';
-    return 'from-red-500 to-red-400';
+  // Health bar color based on level (matching Neon Dash style)
+  const getHealthBarStyle = () => {
+    if (isFeverMode) return 'linear-gradient(to right, #a855f7, #ec4899)';
+    if (healthPercent > 50) return 'linear-gradient(to right, #22c55e, #4ade80)';
+    if (healthPercent > 25) return 'linear-gradient(to right, #eab308, #fbbf24)';
+    return 'linear-gradient(to right, #dc2626, #ef4444)';
   };
 
-  const getEnergyTextColor = () => {
+  const getHealthTextColor = () => {
     if (isFeverMode) return 'text-purple-400';
-    if (energyPercent > 60) return 'text-green-400';
-    if (energyPercent > 30) return 'text-yellow-400';
+    if (healthPercent > 50) return 'text-green-400';
+    if (healthPercent > 25) return 'text-yellow-400';
     return 'text-red-400';
+  };
+
+  const getHealthBorderColor = () => {
+    if (isFeverMode) return 'border-purple-500/60';
+    if (healthPercent > 50) return 'border-gray-600/50';
+    if (healthPercent > 25) return 'border-yellow-500/60';
+    return 'border-red-500/80';
   };
 
   return (
     <div className="absolute inset-x-0 top-0 p-2 sm:p-4 pointer-events-none">
-      {/* Top bar - compact for mobile */}
-      <div className="flex justify-between items-start gap-2 mb-2">
-        {/* Distance & Time - compact */}
-        <div className="bg-black/70 rounded-lg px-2 sm:px-3 py-1.5 backdrop-blur-sm">
-          <p className="text-cyan-400 text-[10px] sm:text-xs leading-tight">DISTANCE</p>
-          <p className="text-white text-lg sm:text-xl font-mono font-bold leading-tight">
-            {Math.floor(distance)}m
-          </p>
-          <p className="text-gray-400 text-[10px] sm:text-xs">{formatTime(elapsedTime)}</p>
-        </div>
+      {/* Health Bar - Full width at top (matching Neon Dash) */}
+      <div className="relative mb-2">
+        {/* Health bar glow effect for low health */}
+        <div
+          className={`absolute inset-0 rounded-full blur-md transition-opacity ${
+            healthPercent <= 25 && !isFeverMode ? 'opacity-60' : healthPercent <= 50 && !isFeverMode ? 'opacity-30' : 'opacity-0'
+          }`}
+          style={{
+            background: healthPercent <= 25 ? '#ef4444' : '#eab308',
+          }}
+        />
 
-        {/* Energy gauge - moved to top center for mobile */}
-        <div className="flex-1 max-w-[140px] sm:max-w-[180px] bg-black/70 rounded-lg px-2 py-1.5 backdrop-blur-sm">
-          <div className="flex justify-between items-center mb-0.5">
-            <span className={`text-[10px] sm:text-xs font-bold ${getEnergyTextColor()}`}>
-              {isFeverMode ? 'FEVER!' : 'ENERGY'}
-            </span>
-            <div className="flex items-center gap-1">
-              {/* Consecutive coins indicator - smaller */}
-              {consecutiveCoins > 0 && !isFeverMode && (
-                <div className="flex gap-0.5">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        i < consecutiveCoins ? 'bg-yellow-400' : 'bg-gray-600'
-                      }`}
-                    />
-                  ))}
-                </div>
-              )}
-              <span className="text-white text-[10px] sm:text-xs">{Math.floor(energy)}%</span>
-            </div>
-          </div>
-          <div className="bg-gray-800 rounded-full h-2 overflow-hidden">
+        {/* Health bar container */}
+        <div
+          className={`relative w-full h-4 bg-gray-900/80 rounded-full overflow-hidden border-2 ${getHealthBorderColor()} ${
+            healthPercent <= 25 && !isFeverMode ? 'animate-pulse' : ''
+          }`}
+        >
+          {/* Health bar fill */}
+          <div
+            className="h-full transition-all duration-150 relative"
+            style={{
+              width: `${healthPercent}%`,
+              background: getHealthBarStyle(),
+            }}
+          >
+            {/* Highlight effect */}
             <div
-              className={`h-full transition-all duration-100 bg-gradient-to-r ${getEnergyColor()} ${
-                isFeverMode || energyPercent <= 30 ? 'animate-pulse' : ''
-              }`}
-              style={{ width: `${energyPercent}%` }}
+              className="absolute inset-0 opacity-40"
+              style={{
+                background: 'linear-gradient(to bottom, rgba(255,255,255,0.4) 0%, transparent 50%, rgba(0,0,0,0.2) 100%)',
+              }}
+            />
+            {/* Drain effect - right edge glow */}
+            <div
+              className="absolute right-0 top-0 bottom-0 w-3"
+              style={{
+                background: healthPercent > 50
+                  ? 'linear-gradient(to right, transparent, rgba(255,255,255,0.3))'
+                  : healthPercent > 25
+                    ? 'linear-gradient(to right, transparent, rgba(255,200,0,0.5))'
+                    : 'linear-gradient(to right, transparent, rgba(255,100,100,0.6))',
+              }}
             />
           </div>
+
+          {/* Health percentage text */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span
+              className={`text-[10px] font-bold drop-shadow-lg ${
+                healthPercent <= 25 && !isFeverMode ? 'text-red-100' : healthPercent <= 50 && !isFeverMode ? 'text-yellow-100' : 'text-white/90'
+              }`}
+            >
+              {Math.ceil(health)}%
+            </span>
+          </div>
         </div>
 
-        {/* Stats - compact */}
-        <div className="flex gap-1 sm:gap-2">
-          {/* Difficulty badge - smaller */}
-          <div className={`rounded-lg px-2 py-1.5 backdrop-blur-sm ${getDifficultyColor()}`}>
-            <p className="text-[10px] sm:text-xs font-bold uppercase leading-tight">
-              {difficulty.slice(0, 4)}
-            </p>
+        {/* Danger warning icon (health <= 25%) */}
+        {healthPercent <= 25 && !isFeverMode && (
+          <div className="absolute -left-1 top-1/2 -translate-y-1/2 animate-pulse">
+            <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center shadow-lg shadow-red-500/50">
+              <span className="text-white text-xs font-bold">!</span>
+            </div>
           </div>
+        )}
+      </div>
 
-          {/* Coins - smaller */}
-          <div className="bg-black/70 rounded-lg px-2 py-1.5 backdrop-blur-sm">
-            <p className="text-yellow-400 text-[10px] leading-tight">🪙</p>
-            <p className="text-white text-sm sm:text-base font-bold text-center leading-tight">{coinCount}</p>
+      {/* Distance display - large centered text (matching Neon Dash) */}
+      <div className="text-center mb-2">
+        <p className="text-white text-3xl sm:text-4xl font-bold drop-shadow-lg">
+          {Math.floor(distance)}m
+        </p>
+        <p className="text-gray-400 text-xs">{formatTime(elapsedTime)}</p>
+      </div>
+
+      {/* Bottom stats bar */}
+      <div className="flex justify-between items-center gap-2">
+        {/* Difficulty badge */}
+        <div className={`rounded-lg px-2 py-1 backdrop-blur-sm ${getDifficultyColor()}`}>
+          <p className="text-[10px] sm:text-xs font-bold uppercase leading-tight">
+            {difficulty}
+          </p>
+        </div>
+
+        {/* Fever/Coins indicator */}
+        <div className="flex items-center gap-2">
+          {/* Consecutive coins indicator (fever progress) */}
+          {consecutiveCoins > 0 && !isFeverMode && (
+            <div className="flex gap-0.5 bg-black/50 px-2 py-1 rounded-full">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-2 h-2 rounded-full transition-all ${
+                    i < consecutiveCoins ? 'bg-yellow-400 scale-110' : 'bg-gray-600'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Fever indicator */}
+          {isFeverMode && (
+            <div className="bg-purple-500/30 border border-purple-500/50 px-2 py-1 rounded-full animate-pulse">
+              <span className="text-purple-300 text-xs font-bold">FEVER!</span>
+            </div>
+          )}
+
+          {/* Coins counter */}
+          <div className="bg-black/50 rounded-lg px-2 py-1 flex items-center gap-1">
+            <span className="text-yellow-400 text-sm">🪙</span>
+            <span className="text-white text-sm font-bold">{coinCount}</span>
           </div>
+        </div>
+
+        {/* Speed indicator */}
+        <div className="bg-black/50 rounded-lg px-2 py-1">
+          <span className="text-cyan-400 text-xs font-mono">{speed.toFixed(0)} km/h</span>
         </div>
       </div>
 
-      {/* Speed indicator - thinner */}
-      <div className="flex items-center gap-1 sm:gap-2">
-        <div className="flex-1 bg-black/40 rounded-full h-1 backdrop-blur-sm overflow-hidden">
-          <div
-            className={`h-full transition-all duration-300 ${
-              isFeverMode ? 'bg-purple-500' : 'bg-cyan-400'
-            }`}
-            style={{ width: `${Math.min(100, (speed / 30) * 100)}%` }}
-          />
-        </div>
-        <span className="text-[10px] sm:text-xs text-gray-400 min-w-[45px] text-right">{speed.toFixed(0)} km/h</span>
-      </div>
-
-      {/* Low energy warning - floating at bottom but above touch zone */}
-      {energyPercent <= 30 && !isFeverMode && (
+      {/* Low health warning - floating */}
+      {healthPercent <= 30 && !isFeverMode && (
         <div className="absolute bottom-32 sm:bottom-24 left-1/2 -translate-x-1/2">
           <p className="text-red-400 text-xs sm:text-sm font-bold bg-black/70 px-3 py-1 rounded-full animate-pulse">
-            ⚠️ Low Energy!
+            ⚠️ Low Health! Find Potions!
           </p>
         </div>
       )}

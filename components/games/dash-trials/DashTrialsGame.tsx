@@ -35,9 +35,8 @@ function GameLoop() {
       const delta = (currentTime - lastTime) / 1000;
       lastTime = currentTime;
 
-      storeRef.current.updateDistance(delta);
-      storeRef.current.updateTime(delta);
-      storeRef.current.updateEnergy(delta);
+      // Combined update function (matching Neon Dash)
+      storeRef.current.updateGame(delta);
 
       animationId = requestAnimationFrame(gameLoop);
     };

@@ -3,7 +3,7 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase';
-import { REFERRAL_REWARDS } from '@/lib/constants';
+import { REFERRAL_REWARDS, REFERRAL_REVENUE_SHARE } from '@/lib/constants';
 
 // ============================================
 // Types
@@ -354,4 +354,87 @@ export async function getWalletByReferralCode(
     console.error('Get wallet by referral code exception:', error);
     return null;
   }
+}
+
+// ============================================
+// Shared Revenue Share Utilities
+// 수익이 발생하는 모든 곳에서 이 함수들을 호출
+// ============================================
+
+export interface RevenueShareResult {
+  success: boolean;
+  shareAmount: number;
+  referrerWallet?: string;
+}
+
+/**
+ * CLUB 획득 시 수익 공유 처리 (1% 공유)
+ * 게임 보상, 퀘스트 보상 등 CLUB 획득 시 호출
+ *
+ * @param walletAddress - CLUB을 획득한 유저의 지갑 주소
+ * @param clubAmount - 획득한 CLUB 양
+ * @returns 수익 공유 결과
+ *
+ * @example
+ * // 게임에서 100 CLUB 획득 시
+ * await processClubEarningShare('0x...', 100);
+ * // → 초대자에게 1 CLUB (1%) 지급
+ */
+export async function processClubEarningShare(
+  walletAddress: string,
+  clubAmount: number
+): Promise<RevenueShareResult> {
+  if (clubAmount <= 0) {
+    return { success: false, shareAmount: 0 };
+  }
+
+  // 1% 계산 (소수점 버림)
+  const shareAmount = Math.floor(clubAmount * REFERRAL_REVENUE_SHARE.earningSharePercent / 100);
+
+  if (shareAmount <= 0) {
+    return { success: false, shareAmount: 0 };
+  }
+
+  const success = await grantRevenueShare(walletAddress, shareAmount);
+
+  return {
+    success,
+    shareAmount: success ? shareAmount : 0,
+  };
+}
+
+/**
+ * 결제 시 수익 공유 처리 (USD × 10 CLUB 공유)
+ * 상점 결제 완료 시 호출
+ *
+ * @param walletAddress - 결제한 유저의 지갑 주소
+ * @param usdAmount - 결제 금액 (USD)
+ * @returns 수익 공유 결과
+ *
+ * @example
+ * // $5 결제 시
+ * await processPurchaseShare('0x...', 5);
+ * // → 초대자에게 50 CLUB (5 × 10) 지급
+ */
+export async function processPurchaseShare(
+  walletAddress: string,
+  usdAmount: number
+): Promise<RevenueShareResult> {
+  if (usdAmount <= 0) {
+    return { success: false, shareAmount: 0 };
+  }
+
+  // USD × 10 = CLUB
+  const shareAmount = Math.round(usdAmount * REFERRAL_REVENUE_SHARE.purchaseMultiplier);
+
+  if (shareAmount <= 0) {
+    return { success: false, shareAmount: 0 };
+  }
+
+  const success = await grantRevenueShare(walletAddress, shareAmount);
+
+  return {
+    success,
+    shareAmount: success ? shareAmount : 0,
+  };
 }

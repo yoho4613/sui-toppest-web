@@ -10,8 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { SuiClient, getFullnodeUrl } from '@mysten/sui/client';
-import { completePurchase, failPurchase, getPurchaseById, updateQuestProgress, grantRevenueShare } from '@/lib/db';
-import { REFERRAL_REVENUE_SHARE } from '@/lib/constants';
+import { completePurchase, failPurchase, getPurchaseById, updateQuestProgress, processPurchaseShare } from '@/lib/db';
 
 const NETWORK = (process.env.SUI_NETWORK || process.env.NEXT_PUBLIC_SUI_NETWORK || 'devnet') as 'devnet' | 'testnet' | 'mainnet';
 
@@ -152,12 +151,9 @@ export async function POST(request: NextRequest) {
 
     // Referral revenue share: Grant USD × 10 CLUB to referrer
     if (priceUsd > 0) {
-      const shareClub = Math.round(priceUsd * REFERRAL_REVENUE_SHARE.purchaseMultiplier);
-      if (shareClub > 0) {
-        grantRevenueShare(walletAddress, shareClub).catch((err) => {
-          console.error('Failed to grant referral revenue share:', err);
-        });
-      }
+      processPurchaseShare(walletAddress, priceUsd).catch((err) => {
+        console.error('Failed to grant referral revenue share:', err);
+      });
     }
 
     return NextResponse.json({

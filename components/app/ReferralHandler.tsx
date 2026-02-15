@@ -46,7 +46,6 @@ export function ReferralHandler() {
     // Accept both referral codes (CLUB...) and wallet addresses (0x...)
     if (refParam && (isReferralCode(refParam) || isValidSuiAddress(refParam))) {
       savePendingReferrer(refParam);
-      console.log('📨 Referrer saved to session:', refParam);
     }
   }, [searchParams]);
 
@@ -65,7 +64,6 @@ export function ReferralHandler() {
         return;
       }
 
-      console.log('📨 Processing referral:', { referrer: referrerCode, referred: address });
       processedRef.current = true;
 
       try {
@@ -87,21 +85,12 @@ export function ReferralHandler() {
           );
           setToastType('success');
           setShowToast(true);
-          console.log('📨 Referral created successfully:', data);
-        } else if (data.reason === 'already_referred') {
-          // User already has a referrer - silently ignore
-          console.log('📨 User already referred, skipping');
-        } else if (data.reason === 'not_new_user') {
-          // Not a new user - silently ignore
-          console.log('📨 Not a new user, referral bonus not available');
-        } else {
-          console.log('📨 Referral not created:', data.reason);
         }
+        // Silently ignore: already_referred, not_new_user, other reasons
 
         // Clear pending referrer regardless of result
         clearPendingReferrer();
-      } catch (error) {
-        console.error('📨 Referral processing error:', error);
+      } catch {
         // Don't clear on error - might want to retry
       }
     };

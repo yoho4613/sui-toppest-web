@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useSuiWallet } from '@/hooks/useSuiWallet';
 import { useZkLogin } from '@/hooks/useZkLogin';
 import { useAppStore } from '@/stores/useAppStore';
-import { AppHeader, BottomNav, PaymentPopup } from '@/components/app';
+import { AppHeader, BottomNav, PaymentPopup, ReferralHandler } from '@/components/app';
 
 export default function PlayLayout({
   children,
@@ -92,6 +92,11 @@ export default function PlayLayout({
 
       {/* Global Payment Popup */}
       <PaymentPopup />
+
+      {/* Referral Handler - detects ?ref= param and processes referrals */}
+      <Suspense fallback={null}>
+        <ReferralHandler />
+      </Suspense>
     </div>
   );
 }

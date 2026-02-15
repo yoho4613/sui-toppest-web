@@ -7,6 +7,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, UserProfile } from '@/lib/supabase';
+import { updateQuestProgress } from '@/lib/db';
+
+// Check if profile is complete (has nickname and email)
+function isProfileComplete(profile: UserProfile | null): boolean {
+  if (!profile) return false;
+  return !!(profile.nickname && profile.email);
+}
 
 // GET /api/profile?address=0x...
 export async function GET(request: NextRequest) {
@@ -130,6 +137,13 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Check if profile is now complete and update quest progress
+      if (isProfileComplete(data)) {
+        updateQuestProgress(wallet_address, 'profile_complete', 1).catch((err) => {
+          console.error('Failed to update profile_complete quest:', err);
+        });
+      }
+
       return NextResponse.json({ profile: data, updated: true });
     } else {
       // Create new profile
@@ -155,6 +169,13 @@ export async function POST(request: NextRequest) {
           { error: 'Failed to create profile' },
           { status: 500 }
         );
+      }
+
+      // Check if profile is complete on creation and update quest progress
+      if (isProfileComplete(data)) {
+        updateQuestProgress(wallet_address, 'profile_complete', 1).catch((err) => {
+          console.error('Failed to update profile_complete quest:', err);
+        });
       }
 
       return NextResponse.json({ profile: data, created: true });

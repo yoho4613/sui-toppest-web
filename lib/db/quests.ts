@@ -371,9 +371,28 @@ export async function calculateProgress(
     }
 
     // Referral conditions
-    case 'referral_daily':
+    case 'referral_daily': {
+      // Count referrals made today
+      const { count } = await supabaseAdmin
+        .from('referrals')
+        .select('*', { count: 'exact', head: true })
+        .eq('referrer_wallet', walletAddress)
+        .gte('created_at', `${today}T00:00:00Z`);
+      return count || 0;
+    }
+
     case 'referral_weekly': {
-      // Get referral count from user_profiles
+      // Count referrals made this week
+      const { count } = await supabaseAdmin
+        .from('referrals')
+        .select('*', { count: 'exact', head: true })
+        .eq('referrer_wallet', walletAddress)
+        .gte('created_at', weekStart.toISOString());
+      return count || 0;
+    }
+
+    case 'referral_total': {
+      // Get total referral count from user_profiles
       const { data: profile } = await supabaseAdmin
         .from('user_profiles')
         .select('referral_count')

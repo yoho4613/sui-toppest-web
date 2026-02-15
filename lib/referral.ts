@@ -15,7 +15,8 @@
  */
 export function generateReferralLink(referralCode: string): string {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://toppest.app';
-  return `${baseUrl}?ref=${referralCode}`;
+  // Direct to /play for better conversion (skip landing page)
+  return `${baseUrl}/play?ref=${referralCode}`;
 }
 
 /**
@@ -23,7 +24,8 @@ export function generateReferralLink(referralCode: string): string {
  */
 export function generateReferralLinkByWallet(walletAddress: string): string {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://toppest.app';
-  return `${baseUrl}?ref=${walletAddress}`;
+  // Direct to /play for better conversion (skip landing page)
+  return `${baseUrl}/play?ref=${walletAddress}`;
 }
 
 // ============================================

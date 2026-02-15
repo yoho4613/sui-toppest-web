@@ -222,13 +222,13 @@ export async function POST(request: NextRequest) {
       updateQuestProgress(wallet_address, 'games_played_daily', 1),
       updateQuestProgress(wallet_address, 'games_played_weekly', 1),
       updateQuestProgress(wallet_address, 'first_game', 1),
-    ]).catch((err) => {
+    ]).catch((err: unknown) => {
       console.error('Failed to update quest progress:', err);
     });
 
     // Referral revenue share: Grant 1% of CLUB earnings to referrer
     if (clubEarned > 0) {
-      processClubEarningShare(wallet_address, clubEarned).catch((err) => {
+      processClubEarningShare(wallet_address, clubEarned).catch((err: unknown) => {
         console.error('Failed to grant referral revenue share:', err);
       });
     }

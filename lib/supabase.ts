@@ -41,6 +41,31 @@ export interface ZkLoginSalt {
   created_at: string;
 }
 
+// Game-specific metadata types (JSONB structure varies by game_type)
+export interface DashTrialsMetadata {
+  fever_count?: number;
+  perfect_count?: number;
+  coin_count?: number;
+  potion_count?: number;
+  difficulty?: string;
+}
+
+// Add more game metadata types as new games are added
+// export interface PuzzleGameMetadata { level?: number; combo_count?: number; }
+
+// Union type for all game metadata
+export type GameMetadata = DashTrialsMetadata | Record<string, unknown>;
+
+// Client info for abuse detection
+export interface ClientInfo {
+  user_agent?: string;
+  platform?: string;
+  screen_width?: number;
+  screen_height?: number;
+  device_pixel_ratio?: number;
+  timezone?: string;
+}
+
 export interface GameRecord {
   id: string;
   user_id: string;
@@ -54,28 +79,17 @@ export interface GameRecord {
   season_id: number | null;
   played_at: string;
 
-  // Game metadata for analytics & anti-cheat
-  fever_count: number | null;
-  perfect_count: number | null;
-  coin_count: number | null;
-  potion_count: number | null;
-  difficulty: string | null;
+  // Game-specific metadata as JSONB (structure varies by game_type)
+  game_metadata: GameMetadata | null;
 
-  // Session & anti-cheat tracking
+  // Session & anti-cheat tracking (common to all games)
   session_token: string | null;
   session_start_time: string | null;
   session_duration_ms: number | null;
   validation_warnings: string[] | null;
 
   // Client info for abuse detection
-  client_info: {
-    user_agent?: string;
-    platform?: string;
-    screen_width?: number;
-    screen_height?: number;
-    device_pixel_ratio?: number;
-    timezone?: string;
-  } | null;
+  client_info: ClientInfo | null;
 }
 
 export interface DailyTicket {

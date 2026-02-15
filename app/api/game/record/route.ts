@@ -38,6 +38,33 @@ function extractClientInfo(request: NextRequest) {
   };
 }
 
+// Build game-specific metadata based on game_type
+// Each game can have different metadata structure - stored as JSONB
+function buildGameMetadata(gameType: string, submission: GameSubmission) {
+  switch (gameType) {
+    case 'dash-trials':
+      return {
+        fever_count: submission.fever_count || 0,
+        perfect_count: submission.perfect_count || 0,
+        coin_count: submission.coin_count || 0,
+        potion_count: submission.potion_count || 0,
+        difficulty: submission.difficulty || 'medium',
+      };
+    // Add more game types here as they are developed
+    // case 'puzzle-quest':
+    //   return { level: submission.level, combo_count: submission.combo_count };
+    default:
+      // For unknown games, return any provided metadata
+      return {
+        fever_count: submission.fever_count,
+        perfect_count: submission.perfect_count,
+        coin_count: submission.coin_count,
+        potion_count: submission.potion_count,
+        difficulty: submission.difficulty,
+      };
+  }
+}
+
 // POST /api/game/record - Save game record
 export async function POST(request: NextRequest) {
   try {
@@ -213,6 +240,10 @@ export async function POST(request: NextRequest) {
       ? Date.now() - sessionResult.session.startTime
       : null;
 
+    // Build game-specific metadata based on game_type
+    // This structure can vary per game - stored as JSONB
+    const gameMetadata = buildGameMetadata(game_type, submission);
+
     // Insert game record with full metadata
     const result = await createGameRecord({
       // Core fields
@@ -226,14 +257,10 @@ export async function POST(request: NextRequest) {
       club_earned: clubEarned,
       season_id: activeSeason?.id || null,
 
-      // Game metadata
-      fever_count: submission.fever_count,
-      perfect_count: submission.perfect_count,
-      coin_count: submission.coin_count,
-      potion_count: submission.potion_count,
-      difficulty: submission.difficulty,
+      // Game-specific metadata (JSONB - structure varies by game_type)
+      game_metadata: gameMetadata,
 
-      // Session & anti-cheat tracking
+      // Session & anti-cheat tracking (common to all games)
       session_token: session_token,
       session_start_time: sessionResult.session?.startTime,
       session_duration_ms: sessionDurationMs ?? undefined,

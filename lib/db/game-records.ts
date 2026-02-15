@@ -2,16 +2,10 @@
  * Game Records Database Queries
  */
 
-import { supabaseAdmin, GameRecord } from '@/lib/supabase';
+import { supabaseAdmin, GameRecord, GameMetadata, ClientInfo } from '@/lib/supabase';
 
-export interface ClientInfo {
-  user_agent?: string;
-  platform?: string;
-  screen_width?: number;
-  screen_height?: number;
-  device_pixel_ratio?: number;
-  timezone?: string;
-}
+// Re-export for convenience
+export type { ClientInfo, GameMetadata };
 
 export interface CreateGameRecordInput {
   user_id: string;
@@ -24,14 +18,10 @@ export interface CreateGameRecordInput {
   club_earned: number;
   season_id?: number | null;
 
-  // Game metadata for analytics & anti-cheat
-  fever_count?: number;
-  perfect_count?: number;
-  coin_count?: number;
-  potion_count?: number;
-  difficulty?: string;
+  // Game-specific metadata as JSONB (structure varies by game_type)
+  game_metadata?: GameMetadata;
 
-  // Session & anti-cheat tracking
+  // Session & anti-cheat tracking (common to all games)
   session_token?: string;
   session_start_time?: number; // Unix timestamp ms
   session_duration_ms?: number;
@@ -70,14 +60,10 @@ export async function createGameRecord(
     club_earned: input.club_earned,
     season_id: input.season_id || null,
 
-    // Game metadata
-    fever_count: input.fever_count ?? null,
-    perfect_count: input.perfect_count ?? null,
-    coin_count: input.coin_count ?? null,
-    potion_count: input.potion_count ?? null,
-    difficulty: input.difficulty ?? null,
+    // Game-specific metadata (JSONB - structure varies by game_type)
+    game_metadata: input.game_metadata ?? null,
 
-    // Session tracking
+    // Session tracking (common to all games)
     session_token: input.session_token ?? null,
     session_start_time: input.session_start_time
       ? new Date(input.session_start_time).toISOString()

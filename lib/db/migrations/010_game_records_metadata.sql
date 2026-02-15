@@ -1,33 +1,20 @@
 -- Migration: Add game metadata columns to game_records table
 -- Purpose: Store full game activity data for analytics and anti-cheat
 -- Date: 2025-02-15
+-- Updated: Use JSONB for game-specific metadata (supports multiple game types)
 
 -- =============================================
--- 1. Game Activity Metadata
+-- 1. Game-Specific Metadata (JSONB - flexible per game)
 -- =============================================
 
--- Fever mode activations count
+-- Game metadata as JSONB - structure varies by game_type
+-- Dash Trials: { fever_count, perfect_count, coin_count, potion_count, difficulty }
+-- Future games: { level, combo_count, power_ups, boss_defeated, etc. }
 ALTER TABLE game_records
-ADD COLUMN IF NOT EXISTS fever_count INTEGER DEFAULT NULL;
-
--- Perfect dodge count
-ALTER TABLE game_records
-ADD COLUMN IF NOT EXISTS perfect_count INTEGER DEFAULT NULL;
-
--- Coins collected
-ALTER TABLE game_records
-ADD COLUMN IF NOT EXISTS coin_count INTEGER DEFAULT NULL;
-
--- Potions collected
-ALTER TABLE game_records
-ADD COLUMN IF NOT EXISTS potion_count INTEGER DEFAULT NULL;
-
--- Difficulty level reached (tutorial, easy, medium, hard, extreme)
-ALTER TABLE game_records
-ADD COLUMN IF NOT EXISTS difficulty TEXT DEFAULT NULL;
+ADD COLUMN IF NOT EXISTS game_metadata JSONB DEFAULT NULL;
 
 -- =============================================
--- 2. Session & Anti-Cheat Tracking
+-- 2. Session & Anti-Cheat Tracking (common to all games)
 -- =============================================
 
 -- Session token used for this game (for audit trail)
@@ -59,10 +46,10 @@ ADD COLUMN IF NOT EXISTS client_info JSONB DEFAULT NULL;
 -- 4. Indexes for Analytics & Anti-Cheat Queries
 -- =============================================
 
--- Index for analyzing games by difficulty
+-- Index for Dash Trials difficulty (GIN for JSONB path)
 CREATE INDEX IF NOT EXISTS idx_game_records_difficulty
-ON game_records(difficulty)
-WHERE difficulty IS NOT NULL;
+ON game_records USING gin((game_metadata->'difficulty'))
+WHERE game_metadata IS NOT NULL;
 
 -- Index for finding suspicious games (with validation warnings)
 CREATE INDEX IF NOT EXISTS idx_game_records_validation_warnings
@@ -79,17 +66,37 @@ CREATE INDEX IF NOT EXISTS idx_game_records_client_platform
 ON game_records((client_info->>'platform'))
 WHERE client_info IS NOT NULL;
 
+-- GIN index on full game_metadata for flexible queries
+CREATE INDEX IF NOT EXISTS idx_game_records_game_metadata
+ON game_records USING gin(game_metadata)
+WHERE game_metadata IS NOT NULL;
+
 -- =============================================
 -- 5. Add Comments for Documentation
 -- =============================================
 
-COMMENT ON COLUMN game_records.fever_count IS 'Number of fever mode activations during the game';
-COMMENT ON COLUMN game_records.perfect_count IS 'Number of perfect dodges/actions';
-COMMENT ON COLUMN game_records.coin_count IS 'Number of coins collected';
-COMMENT ON COLUMN game_records.potion_count IS 'Number of health potions collected';
-COMMENT ON COLUMN game_records.difficulty IS 'Final difficulty level reached (tutorial, easy, medium, hard, extreme)';
+COMMENT ON COLUMN game_records.game_metadata IS 'Game-specific metadata as JSONB. Structure varies by game_type. E.g., Dash Trials: {fever_count, perfect_count, coin_count, potion_count, difficulty}';
 COMMENT ON COLUMN game_records.session_token IS 'Anti-cheat session token used for this game';
 COMMENT ON COLUMN game_records.session_start_time IS 'Server timestamp when game session was started';
 COMMENT ON COLUMN game_records.session_duration_ms IS 'Server-calculated session duration (should match time_ms)';
 COMMENT ON COLUMN game_records.validation_warnings IS 'Array of anti-cheat warnings triggered during validation';
 COMMENT ON COLUMN game_records.client_info IS 'Client device/browser info for abuse detection (user_agent, platform, etc.)';
+
+-- =============================================
+-- 6. Example Queries for Different Games
+-- =============================================
+
+-- Query Dash Trials games by difficulty:
+-- SELECT * FROM game_records
+-- WHERE game_type = 'dash-trials'
+-- AND game_metadata->>'difficulty' = 'hard';
+
+-- Query high fever count games:
+-- SELECT * FROM game_records
+-- WHERE game_type = 'dash-trials'
+-- AND (game_metadata->>'fever_count')::int > 5;
+
+-- Query future puzzle game by level:
+-- SELECT * FROM game_records
+-- WHERE game_type = 'puzzle-quest'
+-- AND (game_metadata->>'level')::int >= 10;

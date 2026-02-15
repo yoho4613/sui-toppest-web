@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { useGameStore } from '../hooks/useGameStore';
 
 const LANE_WIDTH = 2.5;
-const LANE_TRANSITION_SPEED = 15;
+const LANE_TRANSITION_SPEED = 15; // Smooth lane transition (matching Lucky Day)
 
 // Color palette - High contrast for visibility against dark map
 const SUIT_COLOR = '#d8e0f0';  // Bright white-gray
@@ -17,6 +17,16 @@ const VISOR_COLOR = '#00ffff';  // Bright cyan
 const FEVER_COLOR = '#ff00ff';
 const WARNING_COLOR = '#ff6666';  // Bright red
 const BOOSTER_FLAME = '#ff8844'; // Booster flame color
+
+// Pre-create color objects to avoid GC
+const COLOR_ACCENT = new THREE.Color(ACCENT_COLOR);
+const COLOR_VISOR = new THREE.Color(VISOR_COLOR);
+const COLOR_FEVER = new THREE.Color(FEVER_COLOR);
+const COLOR_WARNING = new THREE.Color(WARNING_COLOR);
+const COLOR_CRASH = new THREE.Color('#ff0000');
+const COLOR_EXHAUSTED = new THREE.Color('#666666');
+const COLOR_EXHAUSTED_VISOR = new THREE.Color('#333333');
+const COLOR_BOOSTER = new THREE.Color(BOOSTER_FLAME);
 
 export function Player() {
   // Refs for animation
@@ -33,19 +43,24 @@ export function Player() {
   const exhaustionPhaseRef = useRef(0);
   const boosterPhaseRef = useRef(0);
 
-  // Game state
-  const playerLane = useGameStore((state) => state.playerLane);
-  const playerAction = useGameStore((state) => state.playerAction);
-  const playerY = useGameStore((state) => state.playerY);
-  const isFeverMode = useGameStore((state) => state.isFeverMode);
-  const health = useGameStore((state) => state.health);
-  const status = useGameStore((state) => state.status);
-  const isCrashing = useGameStore((state) => state.isCrashing);
-  const gameOverReason = useGameStore((state) => state.gameOverReason);
+  // Material refs for dynamic color updates (no re-render needed)
+  const accentMaterialsRef = useRef<THREE.MeshStandardMaterial[]>([]);
+  const visorMaterialsRef = useRef<THREE.MeshStandardMaterial[]>([]);
+  const boosterMaterialsRef = useRef<THREE.MeshStandardMaterial[]>([]);
+  const playerLightRef = useRef<THREE.PointLight>(null);
+  const boosterLightRef = useRef<THREE.PointLight>(null);
 
-  const targetX = playerLane * LANE_WIDTH;
-  const isLowHealth = health <= 30;
-  const isExhausted = gameOverReason === 'exhaustion';
+  // Cache for last known state (to detect changes)
+  const lastStateRef = useRef({
+    isFeverMode: false,
+    isCrashing: false,
+    isLowHealth: false,
+    isExhausted: false,
+  });
+
+  // Only subscribe to status (for useEffect and conditional rendering)
+  // All other values are read via getState() in useFrame
+  const status = useGameStore((state) => state.status);
 
   // Reset player position when game restarts (countdown starts)
   useEffect(() => {
@@ -78,26 +93,105 @@ export function Player() {
     }
   }, [status]);
 
-  // Get accent color based on state
-  const getAccentColor = () => {
-    if (isCrashing) return '#ff0000';
-    if (isExhausted) return '#666666'; // Dim gray for exhaustion
-    if (isFeverMode) return FEVER_COLOR;
-    if (isLowHealth) return WARNING_COLOR;
-    return ACCENT_COLOR;
-  };
-
-  const getVisorColor = () => {
-    if (isCrashing) return '#ff0000';
-    if (isExhausted) return '#333333'; // Dim for exhaustion
-    if (isFeverMode) return FEVER_COLOR;
-    if (isLowHealth) return WARNING_COLOR;
-    return VISOR_COLOR;
-  };
-
-  // Animation loop
+  // Animation loop - all state read via getState() (no subscriptions = no re-renders)
   useFrame((state, delta) => {
     if (!groupRef.current || !bodyRef.current) return;
+
+    // Read all game state at once (no React re-render triggered)
+    const gameState = useGameStore.getState();
+    const {
+      playerLane,
+      playerAction,
+      playerY,
+      isFeverMode,
+      isCrashing,
+      health,
+      gameOverReason,
+    } = gameState;
+
+    const targetX = playerLane * LANE_WIDTH;
+    const isExhausted = gameOverReason === 'exhaustion';
+    const isLowHealth = health <= 30;
+
+    // Update colors only when state changes (not every frame)
+    const stateChanged =
+      lastStateRef.current.isFeverMode !== isFeverMode ||
+      lastStateRef.current.isCrashing !== isCrashing ||
+      lastStateRef.current.isLowHealth !== isLowHealth ||
+      lastStateRef.current.isExhausted !== isExhausted;
+
+    if (stateChanged) {
+      lastStateRef.current = { isFeverMode, isCrashing, isLowHealth, isExhausted };
+
+      // Determine colors
+      let accentColor: THREE.Color;
+      let visorColor: THREE.Color;
+      let emissiveIntensity: number;
+
+      if (isCrashing) {
+        accentColor = COLOR_CRASH;
+        visorColor = COLOR_CRASH;
+        emissiveIntensity = 2.0;
+      } else if (isExhausted) {
+        accentColor = COLOR_EXHAUSTED;
+        visorColor = COLOR_EXHAUSTED_VISOR;
+        emissiveIntensity = 0.1;
+      } else if (isFeverMode) {
+        accentColor = COLOR_FEVER;
+        visorColor = COLOR_FEVER;
+        emissiveIntensity = 1.2;
+      } else if (isLowHealth) {
+        accentColor = COLOR_WARNING;
+        visorColor = COLOR_WARNING;
+        emissiveIntensity = 0.8;
+      } else {
+        accentColor = COLOR_ACCENT;
+        visorColor = COLOR_VISOR;
+        emissiveIntensity = 0.5;
+      }
+
+      // Update accent materials
+      accentMaterialsRef.current.forEach((mat) => {
+        if (mat) {
+          mat.color.copy(accentColor);
+          mat.emissive.copy(accentColor);
+          mat.emissiveIntensity = emissiveIntensity;
+        }
+      });
+
+      // Update visor materials
+      visorMaterialsRef.current.forEach((mat) => {
+        if (mat) {
+          mat.color.copy(visorColor);
+          mat.emissive.copy(visorColor);
+          mat.emissiveIntensity = isFeverMode ? 1.2 : 0.6;
+        }
+      });
+
+      // Update booster materials
+      const boosterColor = isFeverMode ? COLOR_FEVER : COLOR_BOOSTER;
+      boosterMaterialsRef.current.forEach((mat) => {
+        if (mat) {
+          mat.color.copy(boosterColor);
+          mat.emissive.copy(boosterColor);
+          mat.emissiveIntensity = isFeverMode ? 2.0 : 1.0;
+        }
+      });
+
+      // Update player light
+      if (playerLightRef.current) {
+        playerLightRef.current.color.copy(visorColor);
+        playerLightRef.current.intensity = isFeverMode ? 3.0 : isLowHealth ? 1.5 : 1.0;
+        playerLightRef.current.distance = isFeverMode ? 7 : 5;
+      }
+
+      // Update booster light
+      if (boosterLightRef.current) {
+        boosterLightRef.current.color.copy(boosterColor);
+        boosterLightRef.current.intensity = isFeverMode ? 3.0 : 1.5;
+        boosterLightRef.current.distance = isFeverMode ? 5 : 3;
+      }
+    }
 
     // Update booster flame animation
     boosterPhaseRef.current += delta * 15;
@@ -118,9 +212,12 @@ export function Player() {
       }
     }
 
-    // Position update
-    const currentX = groupRef.current.position.x;
-    groupRef.current.position.x = THREE.MathUtils.lerp(currentX, targetX, delta * LANE_TRANSITION_SPEED);
+    // Smooth lane transition (matching Lucky Day pattern)
+    groupRef.current.position.x = THREE.MathUtils.lerp(
+      groupRef.current.position.x,
+      targetX,
+      delta * LANE_TRANSITION_SPEED
+    );
 
     // Running animation (when not jumping/sliding)
     if (status === 'playing' && playerAction === 'running') {
@@ -347,9 +444,29 @@ export function Player() {
     groupRef.current.rotation.z = THREE.MathUtils.lerp(groupRef.current.rotation.z, tilt, delta * 10);
   });
 
-  const accentColor = getAccentColor();
-  const visorColor = getVisorColor();
-  const emissiveIntensity = isCrashing ? 2.0 : isExhausted ? 0.1 : isFeverMode ? 1.2 : isLowHealth ? 0.8 : 0.5;
+  // Register material refs on mount (collect all accent/visor materials)
+  const registerAccentMaterial = (mat: THREE.MeshStandardMaterial | null) => {
+    if (mat && !accentMaterialsRef.current.includes(mat)) {
+      accentMaterialsRef.current.push(mat);
+    }
+  };
+
+  const registerVisorMaterial = (mat: THREE.MeshStandardMaterial | null) => {
+    if (mat && !visorMaterialsRef.current.includes(mat)) {
+      visorMaterialsRef.current.push(mat);
+    }
+  };
+
+  const registerBoosterMaterial = (mat: THREE.MeshStandardMaterial | null) => {
+    if (mat && !boosterMaterialsRef.current.includes(mat)) {
+      boosterMaterialsRef.current.push(mat);
+    }
+  };
+
+  // Initial colors (will be updated in useFrame when state changes)
+  const initialAccent = ACCENT_COLOR;
+  const initialVisor = VISOR_COLOR;
+  const initialEmissive = 0.5;
 
   return (
     <group ref={groupRef} position={[0, 0.5, 0]}>
@@ -360,7 +477,7 @@ export function Player() {
           <capsuleGeometry args={[0.25, 0.4, 8, 16]} />
           <meshStandardMaterial
             color={SUIT_COLOR}
-            emissive={accentColor}
+            emissive={initialAccent}
             emissiveIntensity={0.1}
             metalness={0.4}
             roughness={0.5}
@@ -371,9 +488,10 @@ export function Player() {
         <mesh position={[0, 0.45, 0.2]}>
           <boxGeometry args={[0.15, 0.3, 0.05]} />
           <meshStandardMaterial
-            color={accentColor}
-            emissive={accentColor}
-            emissiveIntensity={emissiveIntensity}
+            ref={registerAccentMaterial}
+            color={initialAccent}
+            emissive={initialAccent}
+            emissiveIntensity={initialEmissive}
           />
         </mesh>
 
@@ -381,9 +499,10 @@ export function Player() {
         <mesh position={[0, 0.35, 0.22]}>
           <sphereGeometry args={[0.08, 16, 16]} />
           <meshStandardMaterial
-            color={visorColor}
-            emissive={visorColor}
-            emissiveIntensity={isFeverMode ? 1.5 : 0.8}
+            ref={registerVisorMaterial}
+            color={initialVisor}
+            emissive={initialVisor}
+            emissiveIntensity={0.8}
           />
         </mesh>
 
@@ -394,7 +513,7 @@ export function Player() {
             <sphereGeometry args={[0.18, 16, 16]} />
             <meshStandardMaterial
               color={SUIT_COLOR}
-              emissive={visorColor}
+              emissive={initialVisor}
               emissiveIntensity={0.08}
               metalness={0.3}
               roughness={0.5}
@@ -405,9 +524,10 @@ export function Player() {
           <mesh position={[0, 0.02, 0.12]}>
             <boxGeometry args={[0.28, 0.12, 0.1]} />
             <meshStandardMaterial
-              color={visorColor}
-              emissive={visorColor}
-              emissiveIntensity={isFeverMode ? 1.2 : 0.6}
+              ref={registerVisorMaterial}
+              color={initialVisor}
+              emissive={initialVisor}
+              emissiveIntensity={0.6}
               metalness={0.8}
               roughness={0.2}
             />
@@ -417,9 +537,10 @@ export function Player() {
           <mesh position={[0, 0.15, 0]}>
             <boxGeometry args={[0.05, 0.1, 0.3]} />
             <meshStandardMaterial
-              color={accentColor}
-              emissive={accentColor}
-              emissiveIntensity={emissiveIntensity}
+              ref={registerAccentMaterial}
+              color={initialAccent}
+              emissive={initialAccent}
+              emissiveIntensity={initialEmissive}
             />
           </mesh>
         </group>
@@ -430,7 +551,7 @@ export function Player() {
             <capsuleGeometry args={[0.08, 0.25, 8, 16]} />
             <meshStandardMaterial
               color={SUIT_DARK}
-              emissive={accentColor}
+              emissive={initialAccent}
               emissiveIntensity={0.08}
               metalness={0.4}
               roughness={0.5}
@@ -440,9 +561,10 @@ export function Player() {
           <mesh position={[-0.06, -0.15, 0]}>
             <boxGeometry args={[0.02, 0.2, 0.06]} />
             <meshStandardMaterial
-              color={accentColor}
-              emissive={accentColor}
-              emissiveIntensity={emissiveIntensity * 0.5}
+              ref={registerAccentMaterial}
+              color={initialAccent}
+              emissive={initialAccent}
+              emissiveIntensity={initialEmissive * 0.5}
             />
           </mesh>
         </group>
@@ -453,7 +575,7 @@ export function Player() {
             <capsuleGeometry args={[0.08, 0.25, 8, 16]} />
             <meshStandardMaterial
               color={SUIT_DARK}
-              emissive={accentColor}
+              emissive={initialAccent}
               emissiveIntensity={0.08}
               metalness={0.4}
               roughness={0.5}
@@ -463,9 +585,10 @@ export function Player() {
           <mesh position={[0.06, -0.15, 0]}>
             <boxGeometry args={[0.02, 0.2, 0.06]} />
             <meshStandardMaterial
-              color={accentColor}
-              emissive={accentColor}
-              emissiveIntensity={emissiveIntensity * 0.5}
+              ref={registerAccentMaterial}
+              color={initialAccent}
+              emissive={initialAccent}
+              emissiveIntensity={initialEmissive * 0.5}
             />
           </mesh>
         </group>
@@ -476,7 +599,7 @@ export function Player() {
             <capsuleGeometry args={[0.1, 0.35, 8, 16]} />
             <meshStandardMaterial
               color={SUIT_DARK}
-              emissive={accentColor}
+              emissive={initialAccent}
               emissiveIntensity={0.08}
               metalness={0.4}
               roughness={0.5}
@@ -486,9 +609,10 @@ export function Player() {
           <mesh position={[-0.08, -0.2, 0]}>
             <boxGeometry args={[0.02, 0.3, 0.08]} />
             <meshStandardMaterial
-              color={accentColor}
-              emissive={accentColor}
-              emissiveIntensity={emissiveIntensity * 0.5}
+              ref={registerAccentMaterial}
+              color={initialAccent}
+              emissive={initialAccent}
+              emissiveIntensity={initialEmissive * 0.5}
             />
           </mesh>
         </group>
@@ -499,7 +623,7 @@ export function Player() {
             <capsuleGeometry args={[0.1, 0.35, 8, 16]} />
             <meshStandardMaterial
               color={SUIT_DARK}
-              emissive={accentColor}
+              emissive={initialAccent}
               emissiveIntensity={0.08}
               metalness={0.4}
               roughness={0.5}
@@ -509,9 +633,10 @@ export function Player() {
           <mesh position={[0.08, -0.2, 0]}>
             <boxGeometry args={[0.02, 0.3, 0.08]} />
             <meshStandardMaterial
-              color={accentColor}
-              emissive={accentColor}
-              emissiveIntensity={emissiveIntensity * 0.5}
+              ref={registerAccentMaterial}
+              color={initialAccent}
+              emissive={initialAccent}
+              emissiveIntensity={initialEmissive * 0.5}
             />
           </mesh>
         </group>
@@ -521,7 +646,7 @@ export function Player() {
           <boxGeometry args={[0.12, 0.08, 0.18]} />
           <meshStandardMaterial
             color={SUIT_ARMOR}
-            emissive={accentColor}
+            emissive={initialAccent}
             emissiveIntensity={0.15}
             metalness={0.7}
             roughness={0.3}
@@ -533,7 +658,7 @@ export function Player() {
           <boxGeometry args={[0.12, 0.08, 0.18]} />
           <meshStandardMaterial
             color={SUIT_ARMOR}
-            emissive={accentColor}
+            emissive={initialAccent}
             emissiveIntensity={0.15}
             metalness={0.7}
             roughness={0.3}
@@ -547,8 +672,8 @@ export function Player() {
             <boxGeometry args={[0.25, 0.2, 0.12]} />
             <meshStandardMaterial
               color={SUIT_ARMOR}
-              emissive={isFeverMode ? FEVER_COLOR : accentColor}
-              emissiveIntensity={isFeverMode ? 0.4 : 0.15}
+              emissive={initialAccent}
+              emissiveIntensity={0.15}
               metalness={0.7}
               roughness={0.3}
             />
@@ -560,8 +685,8 @@ export function Player() {
               <cylinderGeometry args={[0.04, 0.05, 0.08, 8]} />
               <meshStandardMaterial
                 color="#1a1a1a"
-                emissive={isFeverMode ? FEVER_COLOR : BOOSTER_FLAME}
-                emissiveIntensity={isFeverMode ? 1.0 : 0.5}
+                emissive={BOOSTER_FLAME}
+                emissiveIntensity={0.5}
                 metalness={0.5}
                 roughness={0.4}
               />
@@ -576,9 +701,10 @@ export function Player() {
           >
             <coneGeometry args={[0.12, 0.25, 8]} />
             <meshStandardMaterial
-              color={isFeverMode ? FEVER_COLOR : BOOSTER_FLAME}
-              emissive={isFeverMode ? FEVER_COLOR : BOOSTER_FLAME}
-              emissiveIntensity={isFeverMode ? 2.0 : 1.0}
+              ref={registerBoosterMaterial}
+              color={BOOSTER_FLAME}
+              emissive={BOOSTER_FLAME}
+              emissiveIntensity={1.0}
               transparent
               opacity={status === 'playing' ? 0.9 : 0.3}
             />
@@ -605,7 +731,7 @@ export function Player() {
           <cylinderGeometry args={[0.22, 0.22, 0.06, 16]} />
           <meshStandardMaterial
             color={SUIT_ARMOR}
-            emissive={accentColor}
+            emissive={initialAccent}
             emissiveIntensity={0.2}
             metalness={0.6}
             roughness={0.4}
@@ -616,28 +742,31 @@ export function Player() {
         <mesh position={[0, 0.12, 0.2]}>
           <boxGeometry args={[0.1, 0.06, 0.04]} />
           <meshStandardMaterial
-            color={visorColor}
-            emissive={visorColor}
-            emissiveIntensity={emissiveIntensity * 0.8}
+            ref={registerVisorMaterial}
+            color={initialVisor}
+            emissive={initialVisor}
+            emissiveIntensity={initialEmissive * 0.8}
           />
         </mesh>
       </group>
 
       {/* Player glow light */}
       <pointLight
+        ref={playerLightRef}
         position={[0, 0.5, 0.3]}
-        color={visorColor}
-        intensity={isFeverMode ? 3.0 : isLowHealth ? 1.5 : 1.0}
-        distance={isFeverMode ? 7 : 5}
+        color={initialVisor}
+        intensity={1.0}
+        distance={5}
       />
 
       {/* Booster glow light */}
       {status === 'playing' && (
         <pointLight
+          ref={boosterLightRef}
           position={[0, 0.2, -0.4]}
-          color={isFeverMode ? FEVER_COLOR : BOOSTER_FLAME}
-          intensity={isFeverMode ? 3.0 : 1.5}
-          distance={isFeverMode ? 5 : 3}
+          color={BOOSTER_FLAME}
+          intensity={1.5}
+          distance={3}
         />
       )}
     </group>

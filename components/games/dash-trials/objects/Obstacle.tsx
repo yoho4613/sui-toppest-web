@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useMemo, useEffect, memo, useState } from 'react';
+import { useRef, useMemo, memo, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '../hooks/useGameStore';
@@ -31,18 +31,10 @@ export const Obstacle = memo(function Obstacle({ type, lane, distance: spawnDist
   const passedRef = useRef(false);
   const movingOffsetRef = useRef(0);
   const pulseRef = useRef(0);
+  const initializedRef = useRef(false);
 
-  // Only subscribe to status for conditional rendering
+  // Get status for conditional rendering (no subscription needed - getState() in useFrame)
   const status = useGameStore((state) => state.status);
-
-  // Use ref to access store values without causing re-renders
-  const storeRef = useRef(useGameStore.getState());
-  useEffect(() => {
-    const unsubscribe = useGameStore.subscribe((state) => {
-      storeRef.current = state;
-    });
-    return unsubscribe;
-  }, []);
 
   // Warning indicator type
   const warningType = useMemo(() => {
@@ -80,16 +72,29 @@ export const Obstacle = memo(function Obstacle({ type, lane, distance: spawnDist
   const baseY = type === 'high' ? 1.8 : height / 2;
   const baseX = lane * LANE_WIDTH;
 
+  // Get latest distance for initial visibility check only (no subscription)
+  // useFrame updates position every frame, so no subscription needed
+  const initialDistance = useRef(useGameStore.getState().distance);
+
   // Animation for moving obstacles and pulsing glow + position updates
   useFrame((state, delta) => {
     if (!groupRef.current) return;
-    const { status: currentStatus, distance, isFeverMode, playerLane, playerAction } = storeRef.current;
+    // Direct getState() call - no subscription needed, fresh state every frame
+    const { status: currentStatus, distance, isFeverMode, playerLane, playerAction } = useGameStore.getState();
 
-    // Update position based on current distance
+    // Update position based on current distance (always sync on every frame)
     const relativeZ = spawnDistance - distance;
     groupRef.current.position.z = -relativeZ;
 
-    if (currentStatus !== 'playing') return;
+    // Hide if out of visible range (instead of re-render)
+    groupRef.current.visible = relativeZ <= 160 && relativeZ >= -15;
+
+    // Mark as initialized after first position sync
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+    }
+
+    if (currentStatus !== 'playing' || !groupRef.current.visible) return;
 
     // Update pulse phase
     pulseRef.current += delta * 6;
@@ -162,9 +167,10 @@ export const Obstacle = memo(function Obstacle({ type, lane, distance: spawnDist
     return 0;
   };
 
-  // Only render if within visible range (use initial check, position is updated in useFrame)
-  const initialRelativeZ = spawnDistance - storeRef.current.distance;
-  if (initialRelativeZ > 160 || initialRelativeZ < -15) return null;
+  // Use initial distance for mount-time visibility (wider range to avoid pop-in)
+  // useFrame will hide/show based on actual distance
+  const initialRelativeZ = spawnDistance - initialDistance.current;
+  if (initialRelativeZ > 200 || initialRelativeZ < -20) return null;
 
   // Color and glow based on type
   const getColorConfig = () => {
@@ -431,51 +437,54 @@ interface CoinProps {
 export const Coin = memo(function Coin({ lane, distance: spawnDistance, onCollect }: CoinProps) {
   const groupRef = useRef<THREE.Group>(null);
   const [collected, setCollected] = useState(false);
+  const initializedRef = useRef(false);
 
-  // Only subscribe to status for conditional rendering
+  // Get status for conditional rendering
   const status = useGameStore((state) => state.status);
 
-  // Use ref for frequently changing values
-  const storeRef = useRef(useGameStore.getState());
-  useEffect(() => {
-    const unsubscribe = useGameStore.subscribe((state) => {
-      storeRef.current = state;
-    });
-    return unsubscribe;
-  }, []);
-
   const x = lane * LANE_WIDTH;
-  const initialRelativeZ = spawnDistance - storeRef.current.distance;
+  // Get initial distance for mount-time visibility check (no subscription)
+  const initialDistance = useRef(useGameStore.getState().distance);
+  const initialRelativeZ = spawnDistance - initialDistance.current;
 
   // Rotation animation + position update + collection check
   useFrame((state, delta) => {
     if (!groupRef.current || collected) return;
-    const { distance, playerLane, status: currentStatus, consecutiveCoins } = storeRef.current;
-    const relativeZ = spawnDistance - distance;
+    // Direct getState() call - no subscription needed
+    const { distance, playerLane, status: currentStatus, consecutiveCoins } = useGameStore.getState();
+    const frameRelativeZ = spawnDistance - distance;
 
-    // Update position
-    groupRef.current.position.z = -relativeZ;
+    // Update position (always sync on every frame)
+    groupRef.current.position.z = -frameRelativeZ;
     groupRef.current.rotation.y += delta * 3;
 
+    // Hide if out of visible range (instead of re-render)
+    groupRef.current.visible = frameRelativeZ <= 160 && frameRelativeZ >= -15;
+
+    // Mark as initialized after first position sync
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+    }
+
     // Update glow intensity based on consecutive coins
-    const glowIntensity = 0.6 + (consecutiveCoins / 5) * 0.4;
+    const glowIntensity = 0.6 + (consecutiveCoins / 10) * 0.4;
     const mesh = groupRef.current.children[0] as THREE.Mesh;
     if (mesh?.material && 'emissiveIntensity' in mesh.material) {
       (mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = glowIntensity;
     }
 
     // Collection check
-    if (currentStatus !== 'playing') return;
-    if (relativeZ < 1.5 && relativeZ > -1.5 && lane === playerLane) {
+    if (currentStatus !== 'playing' || !groupRef.current.visible) return;
+    if (frameRelativeZ < 1.5 && frameRelativeZ > -1.5 && lane === playerLane) {
       setCollected(true);
       onCollect();
     }
   });
 
-  if (initialRelativeZ > 160 || initialRelativeZ < -15 || collected) return null;
+  if (initialRelativeZ > 200 || initialRelativeZ < -20 || collected) return null;
 
-  // Initial glow intensity (updated in useFrame)
-  const initialGlowIntensity = 0.6 + (storeRef.current.consecutiveCoins / 5) * 0.4;
+  // Initial glow intensity (updated in useFrame based on consecutive coins)
+  const initialGlowIntensity = 0.6;
 
   return (
     <group ref={groupRef} position={[x, 1.0, -initialRelativeZ]}>
@@ -530,21 +539,15 @@ interface HealthPotionProps {
 export const HealthPotion = memo(function HealthPotion({ lane, distance: spawnDistance, size = 'normal', onCollect }: HealthPotionProps) {
   const groupRef = useRef<THREE.Group>(null);
   const [collected, setCollected] = useState(false);
+  const initializedRef = useRef(false);
 
-  // Only subscribe to status for conditional rendering
+  // Get status for conditional rendering
   const status = useGameStore((state) => state.status);
 
-  // Use ref for frequently changing values
-  const storeRef = useRef(useGameStore.getState());
-  useEffect(() => {
-    const unsubscribe = useGameStore.subscribe((state) => {
-      storeRef.current = state;
-    });
-    return unsubscribe;
-  }, []);
-
   const x = lane * LANE_WIDTH;
-  const initialRelativeZ = spawnDistance - storeRef.current.distance;
+  // Get initial distance for mount-time visibility check (no subscription)
+  const initialDistance = useRef(useGameStore.getState().distance);
+  const initialRelativeZ = spawnDistance - initialDistance.current;
 
   // Get size config
   const config = POTION_CONFIG[size];
@@ -554,27 +557,35 @@ export const HealthPotion = memo(function HealthPotion({ lane, distance: spawnDi
   // Rotation, floating animation, position update, and collection check
   useFrame((state, delta) => {
     if (!groupRef.current || collected) return;
-    const { distance, playerLane, status: currentStatus } = storeRef.current;
-    const relativeZ = spawnDistance - distance;
+    // Direct getState() call - no subscription needed
+    const { distance, playerLane, status: currentStatus } = useGameStore.getState();
+    const frameRelativeZ = spawnDistance - distance;
 
-    // Update position with floating effect
-    groupRef.current.position.z = -relativeZ;
+    // Update position with floating effect (always sync on every frame)
+    groupRef.current.position.z = -frameRelativeZ;
     groupRef.current.position.y = 1.5 + Math.sin(state.clock.elapsedTime * 3) * 0.2;
     groupRef.current.rotation.y += delta * 2;
 
+    // Hide if out of visible range (instead of re-render)
+    groupRef.current.visible = frameRelativeZ <= 160 && frameRelativeZ >= -15;
+
+    // Mark as initialized after first position sync
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+    }
+
     // Collection check
-    if (currentStatus !== 'playing') return;
-    if (relativeZ < 1.5 && relativeZ > -1.5 && lane === playerLane) {
+    if (currentStatus !== 'playing' || !groupRef.current.visible) return;
+    if (frameRelativeZ < 1.5 && frameRelativeZ > -1.5 && lane === playerLane) {
       setCollected(true);
       onCollect();
     }
   });
 
-  if (initialRelativeZ > 160 || initialRelativeZ < -15 || collected) return null;
+  if (initialRelativeZ > 200 || initialRelativeZ < -20 || collected) return null;
 
-  // Pulse more when player has low health (static for initial render)
-  const initialHealth = storeRef.current.health;
-  const pulseIntensity = (initialHealth <= 30 ? 1.5 : 1.0) * config.glowIntensity;
+  // Base pulse intensity (dynamic glow handled in useFrame if needed)
+  const pulseIntensity = config.glowIntensity;
 
   return (
     <group ref={groupRef} position={[x, 1.5, -initialRelativeZ]} scale={[scale, scale, scale]}>

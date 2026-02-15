@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { useGameStore } from './useGameStore';
 
 const SWIPE_THRESHOLD = 30; // Reduced for faster response
@@ -16,35 +16,26 @@ interface TouchData {
 
 export function useControls() {
   const touchStartRef = useRef<TouchData | null>(null);
-  const lastActionTimeRef = useRef<number>(0);
-  const actionCooldown = 50; // ms - prevent double triggers
 
-  // Use refs to avoid re-registering event listeners on every state change
-  const storeRef = useRef(useGameStore.getState());
+  // Separate cooldowns per action type to prevent blocking different actions
+  const lastJumpTimeRef = useRef<number>(0);
+  const lastSlideTimeRef = useRef<number>(0);
+  const lastLaneChangeTimeRef = useRef<number>(0);
 
-  // Subscribe to store changes
-  useEffect(() => {
-    const unsubscribe = useGameStore.subscribe((state) => {
-      storeRef.current = state;
-    });
-    return unsubscribe;
-  }, []);
-
-  // Debounced action executor
-  const executeAction = useCallback((action: () => void) => {
-    const now = Date.now();
-    if (now - lastActionTimeRef.current < actionCooldown) return false;
-    lastActionTimeRef.current = now;
-    action();
-    return true;
-  }, []);
+  // Cooldowns: store actions already have built-in checks (playerAction !== 'running')
+  // These are just to prevent OS key-repeat from firing too rapidly
+  const JUMP_COOLDOWN = 100; // Prevent rapid jump spam
+  const SLIDE_COOLDOWN = 50; // Minimal cooldown for slide
+  const LANE_CHANGE_COOLDOWN = 0; // No cooldown - animation handles rate limiting
 
   useEffect(() => {
     // Handle touch input - tap for lane change, swipe for jump/slide
     const handleTouchAction = (startX: number, startY: number, endX: number, endY: number) => {
-      const { status, playerLane, setLane, jump, startSlide } = storeRef.current;
+      // Always get fresh state to avoid stale ref issues
+      const { status, playerLane, setLane, jump, startSlide } = useGameStore.getState();
       if (status !== 'playing') return;
 
+      const now = Date.now();
       const deltaX = endX - startX;
       const deltaY = endY - startY;
       const absX = Math.abs(deltaX);
@@ -54,19 +45,31 @@ export function useControls() {
       if (absY > SWIPE_THRESHOLD && absY > absX) {
         // Vertical swipe - jump or slide
         if (deltaY < 0) {
-          executeAction(() => jump());
+          // Jump with cooldown
+          if (now - lastJumpTimeRef.current >= JUMP_COOLDOWN) {
+            lastJumpTimeRef.current = now;
+            jump();
+          }
         } else {
-          executeAction(() => startSlide());
+          // Slide with cooldown
+          if (now - lastSlideTimeRef.current >= SLIDE_COOLDOWN) {
+            lastSlideTimeRef.current = now;
+            startSlide();
+          }
         }
         return;
       }
 
-      // Check for horizontal swipe
+      // Check for horizontal swipe - lane change (no cooldown, animation handles rate limiting)
       if (absX > SWIPE_THRESHOLD && absX > absY) {
-        if (deltaX > 0 && playerLane < 1) {
-          executeAction(() => setLane((playerLane + 1) as -1 | 0 | 1));
-        } else if (deltaX < 0 && playerLane > -1) {
-          executeAction(() => setLane((playerLane - 1) as -1 | 0 | 1));
+        if (now - lastLaneChangeTimeRef.current >= LANE_CHANGE_COOLDOWN) {
+          if (deltaX > 0 && playerLane < 1) {
+            lastLaneChangeTimeRef.current = now;
+            setLane((playerLane + 1) as -1 | 0 | 1);
+          } else if (deltaX < 0 && playerLane > -1) {
+            lastLaneChangeTimeRef.current = now;
+            setLane((playerLane - 1) as -1 | 0 | 1);
+          }
         }
         return;
       }
@@ -80,16 +83,21 @@ export function useControls() {
         // Right third of screen → move right
         // Middle → jump
         if (tapX < screenWidth / 3) {
-          if (playerLane > -1) {
-            executeAction(() => setLane((playerLane - 1) as -1 | 0 | 1));
+          if (playerLane > -1 && now - lastLaneChangeTimeRef.current >= LANE_CHANGE_COOLDOWN) {
+            lastLaneChangeTimeRef.current = now;
+            setLane((playerLane - 1) as -1 | 0 | 1);
           }
         } else if (tapX > (screenWidth * 2) / 3) {
-          if (playerLane < 1) {
-            executeAction(() => setLane((playerLane + 1) as -1 | 0 | 1));
+          if (playerLane < 1 && now - lastLaneChangeTimeRef.current >= LANE_CHANGE_COOLDOWN) {
+            lastLaneChangeTimeRef.current = now;
+            setLane((playerLane + 1) as -1 | 0 | 1);
           }
         } else {
           // Middle tap = jump
-          executeAction(() => jump());
+          if (now - lastJumpTimeRef.current >= JUMP_COOLDOWN) {
+            lastJumpTimeRef.current = now;
+            jump();
+          }
         }
       }
     };
@@ -114,8 +122,7 @@ export function useControls() {
     // Touch end (swipe/tap detection + end slide)
     const handleTouchEnd = (e: TouchEvent) => {
       // End sliding when touch ends
-      const { endSlide } = storeRef.current;
-      endSlide();
+      useGameStore.getState().endSlide();
 
       if (!touchStartRef.current || touchStartRef.current.processed) return;
 
@@ -137,47 +144,64 @@ export function useControls() {
 
     // Touch cancel
     const handleTouchCancel = () => {
-      const { endSlide } = storeRef.current;
-      endSlide();
+      useGameStore.getState().endSlide();
       touchStartRef.current = null;
     };
 
     // Keyboard input - key down
     const handleKeyDown = (e: KeyboardEvent) => {
-      const { status, playerLane, setLane, jump, startSlide } = storeRef.current;
+      // Always get fresh state to avoid stale ref issues
+      const { status, playerLane, setLane, jump, startSlide } = useGameStore.getState();
       if (status !== 'playing') return;
+
+      const now = Date.now();
 
       switch (e.key.toLowerCase()) {
         case 'w':
         case 'arrowup':
         case ' ':
           e.preventDefault();
-          executeAction(() => jump());
+          // Jump with cooldown (prevents OS key-repeat spam)
+          if (now - lastJumpTimeRef.current >= JUMP_COOLDOWN) {
+            lastJumpTimeRef.current = now;
+            jump();
+          }
           break;
         case 's':
         case 'arrowdown':
           e.preventDefault();
-          executeAction(() => startSlide());
+          // Slide with minimal cooldown
+          if (now - lastSlideTimeRef.current >= SLIDE_COOLDOWN) {
+            lastSlideTimeRef.current = now;
+            startSlide();
+          }
           break;
         case 'a':
         case 'arrowleft':
           e.preventDefault();
-          if (playerLane > -1) executeAction(() => setLane((playerLane - 1) as -1 | 0 | 1));
+          // Lane change - no cooldown (animation handles rate limiting)
+          if (playerLane > -1 && now - lastLaneChangeTimeRef.current >= LANE_CHANGE_COOLDOWN) {
+            lastLaneChangeTimeRef.current = now;
+            setLane((playerLane - 1) as -1 | 0 | 1);
+          }
           break;
         case 'd':
         case 'arrowright':
           e.preventDefault();
-          if (playerLane < 1) executeAction(() => setLane((playerLane + 1) as -1 | 0 | 1));
+          // Lane change - no cooldown (animation handles rate limiting)
+          if (playerLane < 1 && now - lastLaneChangeTimeRef.current >= LANE_CHANGE_COOLDOWN) {
+            lastLaneChangeTimeRef.current = now;
+            setLane((playerLane + 1) as -1 | 0 | 1);
+          }
           break;
       }
     };
 
     // Keyboard input - key up (end slide)
     const handleKeyUp = (e: KeyboardEvent) => {
-      const { endSlide } = storeRef.current;
       const key = e.key.toLowerCase();
       if (key === 's' || key === 'arrowdown') {
-        endSlide();
+        useGameStore.getState().endSlide();
       }
     };
 
@@ -195,5 +219,5 @@ export function useControls() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [executeAction]);
+  }, []); // Empty deps - all state accessed via getState(), refs are stable
 }

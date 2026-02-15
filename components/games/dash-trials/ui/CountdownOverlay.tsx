@@ -3,13 +3,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameStore } from '../hooks/useGameStore';
-import { useClubRewards } from '../hooks/useClubRewards';
+import { calculateClubRewards, formatReward as formatClubReward, type RewardResult } from '@/lib/rewards/club-rewards';
 import { useGameAPI } from '@/hooks/useGameAPI';
 import { useSuiWallet } from '@/hooks/useSuiWallet';
 import { useZkLogin } from '@/hooks/useZkLogin';
 import { useAppStore } from '@/stores/useAppStore';
 import { useQuestStore } from '@/hooks/useQuestStore';
-import { formatReward } from '@/lib/rewards/club-rewards';
 
 const GAME_TYPE = 'dash-trials';
 
@@ -65,7 +64,7 @@ export function MenuOverlay() {
   const { address: zkAddress } = useZkLogin();
   const address = walletAddress || zkAddress;
 
-  const { checkTickets, useTicket, isLoadingTickets } = useGameAPI();
+  const { checkTickets, useTicket, startGameSession, isLoadingTickets, isLoadingSession } = useGameAPI();
   const [ticketStatus, setTicketStatus] = useState<{
     canPlay: boolean;
     dailyTickets: number;
@@ -107,9 +106,9 @@ export function MenuOverlay() {
     }
 
     // Use a ticket
-    const result = await useTicket(address, GAME_TYPE);
+    const ticketResult = await useTicket(address, GAME_TYPE);
 
-    if (!result || !result.success) {
+    if (!ticketResult || !ticketResult.success) {
       setTicketError('No tickets remaining. Get more Star Tickets!');
       setTicketStatus((prev) => prev ? { ...prev, canPlay: false, totalTickets: 0 } : null);
       return;
@@ -118,18 +117,25 @@ export function MenuOverlay() {
     // Update ticket status
     setTicketStatus((prev) => prev ? {
       ...prev,
-      dailyTickets: result.dailyTickets,
-      starTickets: result.starTickets,
-      totalTickets: result.totalTickets,
-      canPlay: result.totalTickets > 0,
+      dailyTickets: ticketResult.dailyTickets,
+      starTickets: ticketResult.starTickets,
+      totalTickets: ticketResult.totalTickets,
+      canPlay: ticketResult.totalTickets > 0,
     } : null);
+
+    // Start game session (for anti-cheat validation)
+    const sessionResult = await startGameSession(address, GAME_TYPE);
+    if (!sessionResult) {
+      console.error('Failed to start game session');
+      // Still allow game to start (graceful degradation)
+    }
 
     // Start the game
     useGameStore.getState().startGame();
   };
 
   const canPlay = !isInitialLoading && ticketStatus?.canPlay !== false;
-  const isButtonLoading = isLoadingTickets && !isInitialLoading;
+  const isButtonLoading = (isLoadingTickets || isLoadingSession) && !isInitialLoading;
 
   return (
     <div className="absolute inset-0 flex items-start justify-center bg-black/80 backdrop-blur-sm z-50 overflow-y-auto">
@@ -199,33 +205,6 @@ export function MenuOverlay() {
             <p className="text-white text-3xl font-bold">{highScore}m</p>
           </div>
         )}
-
-        {/* Difficulty Info */}
-        <div className="bg-white/5 rounded-xl p-4 mb-6">
-          <p className="font-bold text-white mb-3">Difficulty Zones</p>
-          <div className="space-y-2 text-sm text-left">
-            <div className="flex justify-between items-center">
-              <span className="text-green-400">Tutorial</span>
-              <span className="text-gray-400">0 - 200m (0.5x)</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-cyan-400">Easy</span>
-              <span className="text-gray-400">200 - 500m (0.8x)</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-yellow-400">Medium</span>
-              <span className="text-gray-400">500 - 1000m (1.0x)</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-orange-400">Hard</span>
-              <span className="text-gray-400">1000 - 2000m (1.3x)</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-red-400">Extreme</span>
-              <span className="text-gray-400">2000m+ (1.5x)</span>
-            </div>
-          </div>
-        </div>
 
         {/* Controls info */}
         <div className="bg-white/5 rounded-xl p-4 mb-6 text-sm text-gray-400">
@@ -304,28 +283,34 @@ export function MenuOverlay() {
   );
 }
 
+// Game stats type for snapshot
+interface GameStats {
+  distance: number;
+  elapsedTime: number;
+  perfectCount: number;
+  coinCount: number;
+  potionCount: number;
+  feverCount: number;
+  highScore: number;
+  difficulty: string;
+  clubRewards: RewardResult;
+}
+
 export function ResultOverlay() {
   const router = useRouter();
+  // Only subscribe to status - no other subscriptions during gameplay
   const status = useGameStore((state) => state.status);
-  const distance = useGameStore((state) => state.distance);
-  const elapsedTime = useGameStore((state) => state.elapsedTime);
-  const perfectCount = useGameStore((state) => state.perfectCount);
-  const coinCount = useGameStore((state) => state.coinCount);
-  const potionCount = useGameStore((state) => state.potionCount);
-  const feverCount = useGameStore((state) => state.feverCount);
-  const highScore = useGameStore((state) => state.highScore);
-  const difficulty = useGameStore((state) => state.difficulty);
 
   const { address: walletAddress } = useSuiWallet();
   const { address: zkAddress } = useZkLogin();
   const address = walletAddress || zkAddress;
 
-  // Calculate $CLUB rewards
-  const clubRewards = useClubRewards();
-
-  const { saveGameRecord, checkTickets, useTicket, isLoading } = useGameAPI();
+  const { saveGameRecord, checkTickets, useTicket, startGameSession, isLoading } = useGameAPI();
   const { refreshLeaderboard, addClubReward } = useAppStore();
   const refreshQuestsAfterGame = useQuestStore((state) => state.refreshAfterGame);
+
+  // Snapshot of game stats - only captured when gameover starts
+  const [gameStats, setGameStats] = useState<GameStats | null>(null);
   const [isSaved, setIsSaved] = useState(false);
   const [clubEarned, setClubEarned] = useState(0);
   const [ticketStatus, setTicketStatus] = useState<{
@@ -336,43 +321,70 @@ export function ResultOverlay() {
   } | null>(null);
   const hasSavedRef = useRef(false);
 
-  // Calculate score (distance-based)
-  const finalDistance = Math.floor(distance);
-  const totalScore = finalDistance; // Score = Distance for simplicity
-
-  // Save game record when game is over
+  // Capture game stats snapshot when gameover starts (no subscriptions needed)
   useEffect(() => {
-    if (status === 'gameover' && address && !hasSavedRef.current) {
+    if (status === 'gameover' && !gameStats) {
+      // Snapshot all values at once using getState()
+      const state = useGameStore.getState();
+      const rewards = calculateClubRewards(GAME_TYPE, Math.floor(state.distance), {
+        feverCount: state.feverCount,
+        perfectCount: state.perfectCount,
+        coinCount: state.coinCount,
+        potionCount: state.potionCount,
+        difficulty: state.difficulty,
+      });
+
+      setGameStats({
+        distance: state.distance,
+        elapsedTime: state.elapsedTime,
+        perfectCount: state.perfectCount,
+        coinCount: state.coinCount,
+        potionCount: state.potionCount,
+        feverCount: state.feverCount,
+        highScore: state.highScore,
+        difficulty: state.difficulty,
+        clubRewards: rewards,
+      });
+    }
+
+    // Reset when returning to menu
+    if (status === 'menu') {
+      setGameStats(null);
+      hasSavedRef.current = false;
+      setIsSaved(false);
+    }
+  }, [status, gameStats]);
+
+  // Save game record when gameover and stats are captured
+  useEffect(() => {
+    if (status === 'gameover' && address && gameStats && !hasSavedRef.current) {
       hasSavedRef.current = true;
+
+      const finalDistance = Math.floor(gameStats.distance);
 
       // Save game record with all stats for reward calculation
       saveGameRecord({
         wallet_address: address,
         game_type: GAME_TYPE,
-        score: totalScore,
+        score: finalDistance,
         distance: finalDistance,
-        time_ms: Math.floor(elapsedTime),
-        // Additional stats for $CLUB reward calculation
-        fever_count: feverCount,
-        perfect_count: perfectCount,
-        coin_count: coinCount,
-        potion_count: potionCount,
-        difficulty: difficulty,
+        time_ms: Math.floor(gameStats.elapsedTime),
+        fever_count: gameStats.feverCount,
+        perfect_count: gameStats.perfectCount,
+        coin_count: gameStats.coinCount,
+        potion_count: gameStats.potionCount,
+        difficulty: gameStats.difficulty,
       }).then((result) => {
         if (result?.success) {
           setIsSaved(true);
           const earnedClub = result.rewards?.club || 0;
           setClubEarned(earnedClub);
 
-          // Update global CLUB balance
           if (earnedClub > 0) {
             addClubReward(earnedClub);
           }
 
-          // Refresh leaderboard in global store so ranking page has fresh data
           refreshLeaderboard(GAME_TYPE, 'weekly', address);
-
-          // Refresh quests to show updated progress
           refreshQuestsAfterGame(address);
         }
       });
@@ -389,15 +401,13 @@ export function ResultOverlay() {
         }
       });
     }
+  }, [status, address, gameStats, saveGameRecord, checkTickets, refreshLeaderboard, addClubReward, refreshQuestsAfterGame]);
 
-    // Reset saved flag when returning to menu
-    if (status === 'menu') {
-      hasSavedRef.current = false;
-      setIsSaved(false);
-    }
-  }, [status, address, totalScore, finalDistance, elapsedTime, feverCount, perfectCount, coinCount, potionCount, difficulty, saveGameRecord, checkTickets, refreshLeaderboard, addClubReward, refreshQuestsAfterGame]);
+  // Don't render during gameplay - avoids any subscription overhead
+  if (status !== 'gameover' || !gameStats) return null;
 
-  if (status !== 'gameover') return null;
+  const finalDistance = Math.floor(gameStats.distance);
+  const { clubRewards } = gameStats;
 
   const formatTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000);
@@ -407,10 +417,10 @@ export function ResultOverlay() {
     return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(2, '0')}`;
   };
 
-  const isNewRecord = finalDistance >= highScore && finalDistance > 0;
+  const isNewRecord = finalDistance >= gameStats.highScore && finalDistance > 0;
 
   const getDifficultyColor = () => {
-    switch (difficulty) {
+    switch (gameStats.difficulty) {
       case 'tutorial': return 'text-green-400';
       case 'easy': return 'text-cyan-400';
       case 'medium': return 'text-yellow-400';
@@ -427,28 +437,29 @@ export function ResultOverlay() {
   const handleRetry = async () => {
     if (!address) return;
 
-    // Check if user has tickets
     if (ticketStatus && ticketStatus.totalTickets <= 0) {
       return;
     }
 
-    // Use a ticket
-    const result = await useTicket(address, GAME_TYPE);
+    const ticketResult = await useTicket(address, GAME_TYPE);
 
-    if (!result || !result.success) {
+    if (!ticketResult || !ticketResult.success) {
       setTicketStatus((prev) => prev ? { ...prev, totalTickets: 0 } : null);
       return;
     }
 
-    // Update ticket status
     setTicketStatus((prev) => prev ? {
       ...prev,
-      dailyTickets: result.dailyTickets,
-      starTickets: result.starTickets,
-      totalTickets: result.totalTickets,
+      dailyTickets: ticketResult.dailyTickets,
+      starTickets: ticketResult.starTickets,
+      totalTickets: ticketResult.totalTickets,
     } : null);
 
-    // Start the game
+    const sessionResult = await startGameSession(address, GAME_TYPE);
+    if (!sessionResult) {
+      console.error('Failed to start game session');
+    }
+
     useGameStore.getState().startGame();
   };
 
@@ -469,7 +480,7 @@ export function ResultOverlay() {
           <p className="text-gray-400 text-sm">DISTANCE</p>
           <p className="text-white text-4xl font-bold">{finalDistance}m</p>
           <p className={`text-sm ${getDifficultyColor()}`}>
-            Reached: {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)} Zone
+            Reached: {gameStats.difficulty.charAt(0).toUpperCase() + gameStats.difficulty.slice(1)} Zone
           </p>
         </div>
 
@@ -480,7 +491,7 @@ export function ResultOverlay() {
             <span className="text-purple-400 font-bold text-lg">$CLUB Earned</span>
           </div>
           <p className="text-white text-4xl font-bold mb-3">
-            +{isSaved ? formatReward(clubEarned) : formatReward(clubRewards.totalReward)}
+            +{isSaved ? formatClubReward(clubEarned) : formatClubReward(clubRewards.totalReward)}
           </p>
 
           {/* Reward Breakdown */}
@@ -491,19 +502,19 @@ export function ResultOverlay() {
             </div>
             {clubRewards.feverBonus > 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-400">Fever ({feverCount}x)</span>
+                <span className="text-gray-400">Fever ({gameStats.feverCount}x)</span>
                 <span className="text-pink-400">+{clubRewards.feverBonus}</span>
               </div>
             )}
             {clubRewards.perfectBonus > 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-400">Perfect ({perfectCount})</span>
+                <span className="text-gray-400">Perfect ({gameStats.perfectCount})</span>
                 <span className="text-purple-400">+{clubRewards.perfectBonus}</span>
               </div>
             )}
             {clubRewards.coinBonus > 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-400">Coins ({coinCount})</span>
+                <span className="text-gray-400">Coins ({gameStats.coinCount})</span>
                 <span className="text-yellow-400">+{clubRewards.coinBonus}</span>
               </div>
             )}
@@ -526,24 +537,24 @@ export function ResultOverlay() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-400">Time</span>
-              <span className="text-white font-mono">{formatTime(elapsedTime)}</span>
+              <span className="text-white font-mono">{formatTime(gameStats.elapsedTime)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">Coins Collected</span>
-              <span className="text-yellow-400">{coinCount}</span>
+              <span className="text-yellow-400">{gameStats.coinCount}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">Potions Used</span>
-              <span className="text-green-400">{potionCount}</span>
+              <span className="text-green-400">{gameStats.potionCount}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">Fever Activations</span>
-              <span className="text-pink-400">{feverCount}</span>
+              <span className="text-pink-400">{gameStats.feverCount}</span>
             </div>
-            {highScore > 0 && (
+            {gameStats.highScore > 0 && (
               <div className="flex justify-between pt-2 border-t border-white/10">
                 <span className="text-gray-400">Best Distance</span>
-                <span className="text-yellow-400">{highScore}m</span>
+                <span className="text-yellow-400">{gameStats.highScore}m</span>
               </div>
             )}
           </div>
@@ -580,7 +591,6 @@ export function ResultOverlay() {
               if (canRetry) {
                 handleRetry();
               } else {
-                // No tickets - redirect to shop
                 router.push('/play/shop');
               }
             }}

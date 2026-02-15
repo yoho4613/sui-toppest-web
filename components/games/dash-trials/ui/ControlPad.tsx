@@ -1,43 +1,54 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import { useGameStore } from '../hooks/useGameStore';
 
 export function ControlPad() {
+  // Only subscribe to status for conditional rendering
   const status = useGameStore((state) => state.status);
-  const playerLane = useGameStore((state) => state.playerLane);
-  const setLane = useGameStore((state) => state.setLane);
-  const jump = useGameStore((state) => state.jump);
-  const startSlide = useGameStore((state) => state.startSlide);
-  const endSlide = useGameStore((state) => state.endSlide);
 
+  // Use ref to access store actions directly without re-renders
+  const storeRef = useRef(useGameStore.getState());
+
+  useEffect(() => {
+    const unsubscribe = useGameStore.subscribe((state) => {
+      storeRef.current = state;
+    });
+    return unsubscribe;
+  }, []);
+
+  // Actions use refs - no re-render on playerLane change
   const handleLeft = useCallback(() => {
+    const { status, playerLane, setLane } = storeRef.current;
     if (status !== 'playing') return;
     if (playerLane > -1) {
       setLane((playerLane - 1) as -1 | 0 | 1);
     }
-  }, [status, playerLane, setLane]);
+  }, []);
 
   const handleRight = useCallback(() => {
+    const { status, playerLane, setLane } = storeRef.current;
     if (status !== 'playing') return;
     if (playerLane < 1) {
       setLane((playerLane + 1) as -1 | 0 | 1);
     }
-  }, [status, playerLane, setLane]);
+  }, []);
 
   const handleJump = useCallback(() => {
+    const { status, jump } = storeRef.current;
     if (status !== 'playing') return;
     jump();
-  }, [status, jump]);
+  }, []);
 
   const handleSlideStart = useCallback(() => {
+    const { status, startSlide } = storeRef.current;
     if (status !== 'playing') return;
     startSlide();
-  }, [status, startSlide]);
+  }, []);
 
   const handleSlideEnd = useCallback(() => {
-    endSlide();
-  }, [endSlide]);
+    storeRef.current.endSlide();
+  }, []);
 
   if (status !== 'playing') return null;
 

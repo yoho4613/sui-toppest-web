@@ -13,45 +13,8 @@ import { useControls } from './hooks/useControls';
 import { useGameStore } from './hooks/useGameStore';
 import { useGameAudio } from './hooks/useGameAudio';
 
-// Game loop component
-function GameLoop() {
-  const status = useGameStore((state) => state.status);
-  const storeRef = useRef(useGameStore.getState());
-
-  useEffect(() => {
-    const unsubscribe = useGameStore.subscribe((state) => {
-      storeRef.current = state;
-    });
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    if (status !== 'playing') return;
-
-    let lastTime = performance.now();
-    let animationId: number;
-
-    const gameLoop = (currentTime: number) => {
-      const delta = (currentTime - lastTime) / 1000;
-      lastTime = currentTime;
-
-      // Combined update function (matching Neon Dash)
-      storeRef.current.updateGame(delta);
-
-      animationId = requestAnimationFrame(gameLoop);
-    };
-
-    animationId = requestAnimationFrame(gameLoop);
-
-    return () => {
-      if (animationId) {
-        cancelAnimationFrame(animationId);
-      }
-    };
-  }, [status]);
-
-  return null;
-}
+// Game loop is now integrated into ObstacleManager's useFrame for better performance
+// This eliminates the double animation loop (requestAnimationFrame + Three.js useFrame)
 
 // Responsive camera component
 function ResponsiveCamera() {
@@ -247,8 +210,7 @@ export function DashTrialsGame() {
         </Suspense>
       </Canvas>
 
-      {/* Game loop */}
-      <GameLoop />
+      {/* Game loop integrated into ObstacleManager for performance */}
 
       {/* Controls */}
       <ControlsWrapper />

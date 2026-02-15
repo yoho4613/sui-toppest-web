@@ -22,7 +22,8 @@ export function Track() {
   const laneDividerRefs = useRef<THREE.Mesh[]>([]);
   const wallLedRefs = useRef<THREE.Mesh[]>([]);
 
-  const distance = useGameStore((state) => state.distance);
+  // Only subscribe to status and isFeverMode (rarely change, needed for JSX styling)
+  // Distance is accessed via getState() in useFrame to avoid per-frame re-renders
   const status = useGameStore((state) => state.status);
   const isFeverMode = useGameStore((state) => state.isFeverMode);
   const prevDistance = useRef(0);
@@ -58,9 +59,11 @@ export function Track() {
   useFrame((_, delta) => {
     if (status !== 'playing') return;
 
+    // Get distance via getState() to avoid subscription re-renders
+    const { distance, isFeverMode: currentFeverMode } = useGameStore.getState();
+
     // Update pulse time
     pulseTime.current += delta * 3;
-    const pulseIntensity = 0.5 + Math.sin(pulseTime.current) * 0.5;
     const feverPulseIntensity = 0.3 + Math.sin(pulseTime.current * 2) * 0.7;
 
     // Animate lane divider glow
@@ -68,7 +71,7 @@ export function Track() {
       if (mesh?.material && 'emissiveIntensity' in mesh.material) {
         const material = mesh.material as THREE.MeshStandardMaterial;
         const offset = index * 0.5;
-        material.emissiveIntensity = isFeverMode
+        material.emissiveIntensity = currentFeverMode
           ? feverPulseIntensity + Math.sin(pulseTime.current + offset) * 0.3
           : 0.6 + Math.sin(pulseTime.current + offset) * 0.3;
       }
@@ -79,7 +82,7 @@ export function Track() {
       if (mesh?.material && 'emissiveIntensity' in mesh.material) {
         const material = mesh.material as THREE.MeshStandardMaterial;
         const offset = index * 0.3;
-        material.emissiveIntensity = isFeverMode
+        material.emissiveIntensity = currentFeverMode
           ? 1.5 + Math.sin(pulseTime.current * 2 + offset) * 0.5
           : 0.8 + Math.sin(pulseTime.current + offset) * 0.4;
       }
@@ -442,8 +445,8 @@ export function Environment() {
         distance={15}
       />
 
-      {/* Fog for depth - creates atmosphere */}
-      <fog attach="fog" args={[getBgColor(), 35, 90]} />
+      {/* Fog for depth - creates atmosphere (starts further to prevent pop-in) */}
+      <fog attach="fog" args={[getBgColor(), 60, 120]} />
 
       {/* Background */}
       <color attach="background" args={[getBgColor()]} />

@@ -38,7 +38,7 @@ const HEALTH_DECAY_INCREASE = 0.02;  // Decay rate increase per second
 
 // Fever mode
 const FEVER_MULTIPLIER = 1.5;
-const CONSECUTIVE_COINS_FOR_FEVER = 5;
+const CONSECUTIVE_COINS_FOR_FEVER = 10;
 
 // Jump timing (matching Neon Dash)
 const JUMP_DURATION = 400; // ms
@@ -225,7 +225,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const newCoinCount = current.coinCount + 1;
     const newConsecutive = current.consecutiveCoins + 1;
 
-    // Check for fever mode (5 consecutive coins)
+    // Check for fever mode (10 consecutive coins)
     if (newConsecutive >= CONSECUTIVE_COINS_FOR_FEVER && !current.isFeverMode) {
       set({
         coinCount: newCoinCount,

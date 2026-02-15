@@ -1,8 +1,13 @@
 /**
  * Hook for game-related API calls
+ *
+ * Anti-Cheat Flow:
+ * 1. Call startGameSession() before starting a game
+ * 2. Store the returned session_token
+ * 3. Pass session_token when calling saveGameRecord()
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 export interface TicketStatus {
   canPlay: boolean;
@@ -20,6 +25,11 @@ export interface TicketStatus {
   maxTickets: number;
   ticketsUsed: number;
   date: string;
+}
+
+export interface GameSession {
+  session_token: string;
+  expires_at: number;
 }
 
 export interface UseTicketResult {
@@ -44,6 +54,8 @@ interface GameRecordInput {
   coin_count?: number;
   potion_count?: number;
   difficulty?: string;
+  // Anti-cheat: session token from startGameSession()
+  session_token?: string;
 }
 
 interface LeaderboardEntry {
@@ -68,7 +80,11 @@ export function useGameAPI() {
   const [isLoadingTickets, setIsLoadingTickets] = useState(false);
   const [isLoadingGame, setIsLoadingGame] = useState(false);
   const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Store current game session token
+  const currentSessionRef = useRef<GameSession | null>(null);
 
   // Check ticket status
   const checkTickets = useCallback(async (
@@ -181,26 +197,100 @@ export function useGameAPI() {
     }
   }, []);
 
-  // Save game record
-  const saveGameRecord = useCallback(async (
-    record: GameRecordInput
-  ): Promise<{ success: boolean; rewards?: { luck: number; club: number } } | null> => {
+  // Start a game session (call before game starts)
+  // Returns a session token that must be passed to saveGameRecord
+  const startGameSession = useCallback(async (
+    walletAddress: string,
+    gameType: string
+  ): Promise<GameSession | null> => {
     try {
-      setIsLoadingGame(true);
+      setIsLoadingSession(true);
       setError(null);
 
-      const response = await fetch('/api/game/record', {
+      const response = await fetch('/api/game/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(record),
+        body: JSON.stringify({
+          wallet_address: walletAddress,
+          game_type: gameType,
+        }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        console.error('Save game record error:', data.error);
+        console.error('Start game session error:', data.error);
+        setError(data.error || 'Failed to start game session');
+        return null;
+      }
+
+      const session: GameSession = {
+        session_token: data.session_token,
+        expires_at: data.expires_at,
+      };
+
+      // Store session for later use
+      currentSessionRef.current = session;
+
+      return session;
+    } catch (err) {
+      console.error('Start game session error:', err);
+      setError('Network error');
+      return null;
+    } finally {
+      setIsLoadingSession(false);
+    }
+  }, []);
+
+  // Get current session token (if exists and not expired)
+  const getCurrentSession = useCallback((): string | null => {
+    const session = currentSessionRef.current;
+    if (!session) return null;
+
+    // Check if session is expired
+    if (Date.now() > session.expires_at) {
+      currentSessionRef.current = null;
+      return null;
+    }
+
+    return session.session_token;
+  }, []);
+
+  // Clear current session (call after game ends)
+  const clearSession = useCallback(() => {
+    currentSessionRef.current = null;
+  }, []);
+
+  // Save game record
+  // Automatically includes session token if available
+  const saveGameRecord = useCallback(async (
+    record: GameRecordInput
+  ): Promise<{ success: boolean; rewards?: { luck: number; club: number }; error?: string } | null> => {
+    try {
+      setIsLoadingGame(true);
+      setError(null);
+
+      // Include session token if not provided and available
+      const sessionToken = record.session_token || getCurrentSession();
+
+      const response = await fetch('/api/game/record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...record,
+          session_token: sessionToken,
+        }),
+      });
+
+      const data = await response.json();
+
+      // Clear session after submission (whether successful or not)
+      clearSession();
+
+      if (!response.ok) {
+        console.error('Save game record error:', data.error, data.details);
         setError(data.error || 'Failed to save game record');
-        return { success: false };
+        return { success: false, error: data.error };
       }
 
       return {
@@ -210,11 +300,12 @@ export function useGameAPI() {
     } catch (err) {
       console.error('Save game record error:', err);
       setError('Network error');
-      return { success: false };
+      clearSession();
+      return { success: false, error: 'Network error' };
     } finally {
       setIsLoadingGame(false);
     }
-  }, []);
+  }, [getCurrentSession, clearSession]);
 
   // Fetch leaderboard
   const fetchLeaderboard = useCallback(async (
@@ -254,14 +345,18 @@ export function useGameAPI() {
 
   return {
     // Loading states
-    isLoading: isLoadingTickets || isLoadingGame || isLoadingLeaderboard,
+    isLoading: isLoadingTickets || isLoadingGame || isLoadingLeaderboard || isLoadingSession,
     isLoadingTickets,
     isLoadingGame,
     isLoadingLeaderboard,
+    isLoadingSession,
     error,
     // Methods
     checkTickets,
     useTicket,
+    startGameSession,
+    getCurrentSession,
+    clearSession,
     saveGameRecord,
     fetchLeaderboard,
   };

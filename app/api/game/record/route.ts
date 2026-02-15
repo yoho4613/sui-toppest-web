@@ -1,7 +1,7 @@
 /**
  * Game Record API
  *
- * POST: Save game record after game ends
+ * POST: Save game record after game ends (with anti-cheat validation)
  * GET: Get user's game history
  */
 
@@ -13,10 +13,17 @@ import {
   getActiveSeason,
   updateLeaderboard,
   updateQuestProgress,
-  grantRevenueShare,
+  processClubEarningShare,
+  validateAndConsumeSession,
+  getRecentGameRecords,
 } from '@/lib/db';
 import { calculateClubRewards } from '@/lib/rewards/club-rewards';
-import { REFERRAL_REVENUE_SHARE } from '@/lib/constants';
+import {
+  validateGameSubmission,
+  checkRateLimit,
+  logSuspiciousActivity,
+  type GameSubmission,
+} from '@/lib/anti-cheat';
 
 // POST /api/game/record - Save game record
 export async function POST(request: NextRequest) {
@@ -34,6 +41,8 @@ export async function POST(request: NextRequest) {
       coin_count,
       potion_count,
       difficulty,
+      // Anti-cheat: session token from /api/game/session
+      session_token,
     } = body;
 
     if (!wallet_address || !game_type) {
@@ -42,6 +51,116 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // ========================================
+    // ANTI-CHEAT VALIDATION
+    // ========================================
+
+    // 1. Session token validation (required)
+    if (!session_token) {
+      logSuspiciousActivity(wallet_address, 'Missing session token', { game_type });
+      return NextResponse.json(
+        { error: 'Missing session token. Start game via /api/game/session first.' },
+        { status: 400 }
+      );
+    }
+
+    const sessionResult = await validateAndConsumeSession(
+      session_token,
+      wallet_address,
+      game_type
+    );
+
+    if (!sessionResult.valid) {
+      logSuspiciousActivity(wallet_address, 'Invalid session token', {
+        error: sessionResult.error,
+        game_type,
+      });
+      return NextResponse.json(
+        { error: sessionResult.error || 'Invalid session token' },
+        { status: 403 }
+      );
+    }
+
+    // 2. Game submission validation (physics-based checks)
+    const submission: GameSubmission = {
+      wallet_address,
+      game_type,
+      score: score || 0,
+      distance: distance || 0,
+      time_ms: time_ms || 0,
+      fever_count: fever_count || 0,
+      perfect_count: perfect_count || 0,
+      coin_count: coin_count || 0,
+      potion_count: potion_count || 0,
+      difficulty: difficulty || 'medium',
+    };
+
+    const validationResult = validateGameSubmission(submission);
+
+    if (!validationResult.valid) {
+      logSuspiciousActivity(wallet_address, 'Invalid game submission', {
+        errors: validationResult.errors,
+        submission,
+      });
+      return NextResponse.json(
+        {
+          error: 'Invalid game data detected',
+          details: validationResult.errors,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Log warnings (but still allow submission)
+    if (validationResult.warnings.length > 0) {
+      logSuspiciousActivity(wallet_address, 'Game submission warnings', {
+        warnings: validationResult.warnings,
+        submission,
+      });
+    }
+
+    // 3. Rate limit check
+    const recentRecords = await getRecentGameRecords(wallet_address, 24);
+    const rateLimitResult = checkRateLimit(recentRecords);
+
+    if (!rateLimitResult.valid) {
+      logSuspiciousActivity(wallet_address, 'Rate limit exceeded on submission', {
+        errors: rateLimitResult.errors,
+        recentGamesCount: recentRecords.length,
+      });
+      return NextResponse.json(
+        {
+          error: 'Rate limit exceeded',
+          details: rateLimitResult.errors,
+        },
+        { status: 429 }
+      );
+    }
+
+    // 4. Session time validation (game duration should match session time)
+    if (sessionResult.session) {
+      const sessionDuration = Date.now() - sessionResult.session.startTime;
+      const reportedDuration = time_ms || 0;
+
+      // Allow some tolerance (session can be created slightly before game starts)
+      // But reported duration should not exceed session duration by much
+      if (reportedDuration > sessionDuration + 5000) {
+        logSuspiciousActivity(wallet_address, 'Time manipulation detected', {
+          sessionDuration,
+          reportedDuration,
+          difference: reportedDuration - sessionDuration,
+        });
+        return NextResponse.json(
+          { error: 'Game duration exceeds session time' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // ========================================
+    // VALIDATED - PROCEED WITH RECORD CREATION
+    // ========================================
 
     // Get user profile ID
     const userId = await getUserIdByWallet(wallet_address);
@@ -55,13 +174,13 @@ export async function POST(request: NextRequest) {
     // Get active season (if any)
     const activeSeason = await getActiveSeason();
 
-    // Calculate $CLUB rewards based on score and game stats
-    const rewardResult = calculateClubRewards(game_type, score, {
-      feverCount: fever_count || 0,
-      perfectCount: perfect_count || 0,
-      coinCount: coin_count || 0,
-      potionCount: potion_count || 0,
-      difficulty: difficulty || 'medium',
+    // Calculate $CLUB rewards based on validated score and game stats
+    const rewardResult = calculateClubRewards(game_type, submission.score, {
+      feverCount: submission.fever_count || 0,
+      perfectCount: submission.perfect_count || 0,
+      coinCount: submission.coin_count || 0,
+      potionCount: submission.potion_count || 0,
+      difficulty: submission.difficulty || 'medium',
     });
 
     const clubEarned = rewardResult.totalReward;
@@ -72,9 +191,9 @@ export async function POST(request: NextRequest) {
       user_id: userId,
       wallet_address,
       game_type,
-      score,
-      distance: distance || 0,
-      time_ms: time_ms || 0,
+      score: submission.score,
+      distance: submission.distance,
+      time_ms: submission.time_ms,
       luck_earned: luckEarned,
       club_earned: clubEarned,
       season_id: activeSeason?.id || null,
@@ -91,8 +210,8 @@ export async function POST(request: NextRequest) {
     updateLeaderboard(
       wallet_address,
       game_type,
-      score || 0,
-      distance || 0,
+      submission.score,
+      submission.distance,
       clubEarned
     ).catch((err) => {
       console.error('Failed to update leaderboard:', err);
@@ -109,14 +228,9 @@ export async function POST(request: NextRequest) {
 
     // Referral revenue share: Grant 1% of CLUB earnings to referrer
     if (clubEarned > 0) {
-      const shareAmount = Math.floor(
-        clubEarned * REFERRAL_REVENUE_SHARE.earningSharePercent / 100
-      );
-      if (shareAmount > 0) {
-        grantRevenueShare(wallet_address, shareAmount).catch((err) => {
-          console.error('Failed to grant referral revenue share:', err);
-        });
-      }
+      processClubEarningShare(wallet_address, clubEarned).catch((err) => {
+        console.error('Failed to grant referral revenue share:', err);
+      });
     }
 
     return NextResponse.json({

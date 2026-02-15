@@ -76,8 +76,22 @@ export {
   getUserReferralCount,
   getUserReferralCode,
   getWalletByReferralCode,
+  // Shared revenue share utilities
+  processClubEarningShare,
+  processPurchaseShare,
   type Referral,
   type ReferralWithUser,
   type ReferralStats,
   type CreateReferralResult,
+  type RevenueShareResult,
 } from './referrals';
+
+// Game Sessions (Anti-Cheat)
+export {
+  createGameSession,
+  validateAndConsumeSession,
+  getRecentGameRecords,
+  cleanupExpiredSessions,
+  type CreateSessionResult,
+  type ValidateSessionResult,
+} from './game-sessions';

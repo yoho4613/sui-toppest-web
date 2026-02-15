@@ -280,6 +280,14 @@ export function ObstacleManager() {
   const lastGeneratedDistanceRef = useRef(0);
   const idCounterRef = useRef({ current: 1 });
 
+  // ============================================
+  // Shared Resources (created once, disposed on unmount)
+  // Using shared geometries/materials is memory-efficient:
+  // - Created once via useMemo
+  // - Reused by all meshes (no per-mesh allocation)
+  // - Only disposed when component unmounts
+  // ============================================
+
   // Shared geometries (created once)
   const geometries = useMemo(() => ({
     // Obstacles
@@ -438,13 +446,73 @@ export function ObstacleManager() {
     return group;
   };
 
+  // Helper to dispose mesh group children (for cleanup)
+  const disposeMeshGroup = (group: THREE.Group) => {
+    group.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        // Note: We don't dispose geometry/material here as they're shared
+        // Just remove references to help GC
+        child.geometry = null!;
+        child.material = null!;
+      }
+    });
+  };
+
+  // Cleanup shared resources on unmount
+  useEffect(() => {
+    return () => {
+      // Dispose all geometries
+      Object.values(geometries).forEach((geo) => {
+        if (geo && typeof geo.dispose === 'function') {
+          geo.dispose();
+        }
+      });
+
+      // Dispose all materials
+      Object.values(materials).forEach((mat) => {
+        if (mat && typeof mat.dispose === 'function') {
+          mat.dispose();
+        }
+      });
+
+      // Clear all mesh groups
+      if (groupRef.current) {
+        obstacleMeshesRef.current.forEach((mesh) => {
+          disposeMeshGroup(mesh);
+          groupRef.current?.remove(mesh);
+        });
+        coinMeshesRef.current.forEach((mesh) => {
+          disposeMeshGroup(mesh);
+          groupRef.current?.remove(mesh);
+        });
+        potionMeshesRef.current.forEach((mesh) => {
+          disposeMeshGroup(mesh);
+          groupRef.current?.remove(mesh);
+        });
+      }
+
+      obstacleMeshesRef.current.clear();
+      coinMeshesRef.current.clear();
+      potionMeshesRef.current.clear();
+    };
+  }, [geometries, materials]);
+
   // Reset on countdown
   useEffect(() => {
     if (status === 'countdown' && groupRef.current) {
-      // Clear all meshes
-      obstacleMeshesRef.current.forEach(mesh => groupRef.current!.remove(mesh));
-      coinMeshesRef.current.forEach(mesh => groupRef.current!.remove(mesh));
-      potionMeshesRef.current.forEach(mesh => groupRef.current!.remove(mesh));
+      // Clear all meshes with proper cleanup
+      obstacleMeshesRef.current.forEach((mesh) => {
+        disposeMeshGroup(mesh);
+        groupRef.current!.remove(mesh);
+      });
+      coinMeshesRef.current.forEach((mesh) => {
+        disposeMeshGroup(mesh);
+        groupRef.current!.remove(mesh);
+      });
+      potionMeshesRef.current.forEach((mesh) => {
+        disposeMeshGroup(mesh);
+        groupRef.current!.remove(mesh);
+      });
 
       obstacleMeshesRef.current.clear();
       coinMeshesRef.current.clear();
@@ -553,6 +621,7 @@ export function ObstacleManager() {
 
         // Remove if too far behind
         if (relativeZ < -OBSTACLE_REMOVE_Z) {
+          disposeMeshGroup(mesh);
           groupRef.current.remove(mesh);
           obstacleMeshesRef.current.delete(obs.id);
           obstaclesRef.current.splice(i, 1);
@@ -586,6 +655,7 @@ export function ObstacleManager() {
           if (zDist < COLLECTION_DISTANCE && coin.lane === playerLane) {
             coin.collected = true;
             store.collectCoin();
+            disposeMeshGroup(mesh);
             groupRef.current.remove(mesh);
             coinMeshesRef.current.delete(coin.id);
           }
@@ -593,6 +663,7 @@ export function ObstacleManager() {
 
         // Remove if too far behind
         if (relativeZ < -OBSTACLE_REMOVE_Z) {
+          disposeMeshGroup(mesh);
           groupRef.current.remove(mesh);
           coinMeshesRef.current.delete(coin.id);
           coinsRef.current.splice(i, 1);
@@ -628,6 +699,7 @@ export function ObstacleManager() {
           if (zDist < COLLECTION_DISTANCE && potion.lane === playerLane) {
             potion.collected = true;
             store.collectPotion(potion.size);
+            disposeMeshGroup(mesh);
             groupRef.current.remove(mesh);
             potionMeshesRef.current.delete(potion.id);
           }
@@ -635,6 +707,7 @@ export function ObstacleManager() {
 
         // Remove if too far behind
         if (relativeZ < -OBSTACLE_REMOVE_Z) {
+          disposeMeshGroup(mesh);
           groupRef.current.remove(mesh);
           potionMeshesRef.current.delete(potion.id);
           potionsRef.current.splice(i, 1);

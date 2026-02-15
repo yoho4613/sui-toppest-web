@@ -42,6 +42,16 @@ export interface UseTicketResult {
   ticketsUsed: number;
 }
 
+interface ClientInfo {
+  screen_width?: number;
+  screen_height?: number;
+  device_pixel_ratio?: number;
+  timezone?: string;
+  // Additional fields populated by server
+  user_agent?: string;
+  platform?: string;
+}
+
 interface GameRecordInput {
   wallet_address: string;
   game_type: string;
@@ -56,6 +66,20 @@ interface GameRecordInput {
   difficulty?: string;
   // Anti-cheat: session token from startGameSession()
   session_token?: string;
+  // Client info (auto-populated if not provided)
+  client_info?: ClientInfo;
+}
+
+// Helper to collect client info from browser
+function collectClientInfo(): ClientInfo {
+  if (typeof window === 'undefined') return {};
+
+  return {
+    screen_width: window.screen?.width,
+    screen_height: window.screen?.height,
+    device_pixel_ratio: window.devicePixelRatio,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  };
 }
 
 interface LeaderboardEntry {
@@ -262,7 +286,7 @@ export function useGameAPI() {
   }, []);
 
   // Save game record
-  // Automatically includes session token if available
+  // Automatically includes session token and client info if available
   const saveGameRecord = useCallback(async (
     record: GameRecordInput
   ): Promise<{ success: boolean; rewards?: { luck: number; club: number }; error?: string } | null> => {
@@ -273,12 +297,16 @@ export function useGameAPI() {
       // Include session token if not provided and available
       const sessionToken = record.session_token || getCurrentSession();
 
+      // Collect client info (browser environment only)
+      const clientInfo = record.client_info || collectClientInfo();
+
       const response = await fetch('/api/game/record', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...record,
           session_token: sessionToken,
+          client_info: clientInfo,
         }),
       });
 

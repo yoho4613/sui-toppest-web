@@ -25,6 +25,19 @@ import {
   type GameSubmission,
 } from '@/lib/anti-cheat';
 
+// Extract client info from request headers
+function extractClientInfo(request: NextRequest) {
+  const userAgent = request.headers.get('user-agent') || undefined;
+  const acceptLanguage = request.headers.get('accept-language') || undefined;
+
+  return {
+    user_agent: userAgent,
+    platform: userAgent?.includes('Mobile') ? 'mobile' : 'desktop',
+    // Additional info can be sent from client
+    accept_language: acceptLanguage,
+  };
+}
+
 // POST /api/game/record - Save game record
 export async function POST(request: NextRequest) {
   try {
@@ -43,6 +56,8 @@ export async function POST(request: NextRequest) {
       difficulty,
       // Anti-cheat: session token from /api/game/session
       session_token,
+      // Client info (optional, sent from browser)
+      client_info: clientInfoFromBody,
     } = body;
 
     if (!wallet_address || !game_type) {
@@ -186,8 +201,21 @@ export async function POST(request: NextRequest) {
     const clubEarned = rewardResult.totalReward;
     const luckEarned = 0; // Deprecated: using $CLUB instead
 
-    // Insert game record
+    // Build client info from request headers + client-provided data
+    const serverClientInfo = extractClientInfo(request);
+    const mergedClientInfo = {
+      ...serverClientInfo,
+      ...(clientInfoFromBody || {}),
+    };
+
+    // Calculate session duration
+    const sessionDurationMs = sessionResult.session
+      ? Date.now() - sessionResult.session.startTime
+      : null;
+
+    // Insert game record with full metadata
     const result = await createGameRecord({
+      // Core fields
       user_id: userId,
       wallet_address,
       game_type,
@@ -197,6 +225,25 @@ export async function POST(request: NextRequest) {
       luck_earned: luckEarned,
       club_earned: clubEarned,
       season_id: activeSeason?.id || null,
+
+      // Game metadata
+      fever_count: submission.fever_count,
+      perfect_count: submission.perfect_count,
+      coin_count: submission.coin_count,
+      potion_count: submission.potion_count,
+      difficulty: submission.difficulty,
+
+      // Session & anti-cheat tracking
+      session_token: session_token,
+      session_start_time: sessionResult.session?.startTime,
+      session_duration_ms: sessionDurationMs ?? undefined,
+      validation_warnings:
+        validationResult.warnings.length > 0
+          ? validationResult.warnings
+          : undefined,
+
+      // Client info
+      client_info: mergedClientInfo,
     });
 
     if (!result.success) {

@@ -4,6 +4,15 @@
 
 import { supabaseAdmin, GameRecord } from '@/lib/supabase';
 
+export interface ClientInfo {
+  user_agent?: string;
+  platform?: string;
+  screen_width?: number;
+  screen_height?: number;
+  device_pixel_ratio?: number;
+  timezone?: string;
+}
+
 export interface CreateGameRecordInput {
   user_id: string;
   wallet_address: string;
@@ -14,6 +23,22 @@ export interface CreateGameRecordInput {
   luck_earned: number;
   club_earned: number;
   season_id?: number | null;
+
+  // Game metadata for analytics & anti-cheat
+  fever_count?: number;
+  perfect_count?: number;
+  coin_count?: number;
+  potion_count?: number;
+  difficulty?: string;
+
+  // Session & anti-cheat tracking
+  session_token?: string;
+  session_start_time?: number; // Unix timestamp ms
+  session_duration_ms?: number;
+  validation_warnings?: string[];
+
+  // Client info for abuse detection
+  client_info?: ClientInfo;
 }
 
 export interface GameRecordResult {
@@ -23,7 +48,7 @@ export interface GameRecordResult {
 }
 
 /**
- * Create a new game record
+ * Create a new game record with full metadata
  */
 export async function createGameRecord(
   input: CreateGameRecordInput
@@ -32,19 +57,41 @@ export async function createGameRecord(
     return { success: false, error: 'Database not configured' };
   }
 
+  // Build the record with all metadata
+  const recordData: Record<string, unknown> = {
+    // Core fields
+    user_id: input.user_id,
+    wallet_address: input.wallet_address,
+    game_type: input.game_type,
+    score: input.score,
+    distance: input.distance,
+    time_ms: input.time_ms,
+    luck_earned: input.luck_earned,
+    club_earned: input.club_earned,
+    season_id: input.season_id || null,
+
+    // Game metadata
+    fever_count: input.fever_count ?? null,
+    perfect_count: input.perfect_count ?? null,
+    coin_count: input.coin_count ?? null,
+    potion_count: input.potion_count ?? null,
+    difficulty: input.difficulty ?? null,
+
+    // Session tracking
+    session_token: input.session_token ?? null,
+    session_start_time: input.session_start_time
+      ? new Date(input.session_start_time).toISOString()
+      : null,
+    session_duration_ms: input.session_duration_ms ?? null,
+    validation_warnings: input.validation_warnings ?? null,
+
+    // Client info (JSONB)
+    client_info: input.client_info ?? null,
+  };
+
   const { data, error } = await supabaseAdmin
     .from('game_records')
-    .insert({
-      user_id: input.user_id,
-      wallet_address: input.wallet_address,
-      game_type: input.game_type,
-      score: input.score,
-      distance: input.distance,
-      time_ms: input.time_ms,
-      luck_earned: input.luck_earned,
-      club_earned: input.club_earned,
-      season_id: input.season_id || null,
-    })
+    .insert(recordData)
     .select()
     .single();
 

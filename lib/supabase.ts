@@ -53,6 +53,29 @@ export interface GameRecord {
   club_earned: number;
   season_id: number | null;
   played_at: string;
+
+  // Game metadata for analytics & anti-cheat
+  fever_count: number | null;
+  perfect_count: number | null;
+  coin_count: number | null;
+  potion_count: number | null;
+  difficulty: string | null;
+
+  // Session & anti-cheat tracking
+  session_token: string | null;
+  session_start_time: string | null;
+  session_duration_ms: number | null;
+  validation_warnings: string[] | null;
+
+  // Client info for abuse detection
+  client_info: {
+    user_agent?: string;
+    platform?: string;
+    screen_width?: number;
+    screen_height?: number;
+    device_pixel_ratio?: number;
+    timezone?: string;
+  } | null;
 }
 
 export interface DailyTicket {

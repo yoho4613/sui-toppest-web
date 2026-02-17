@@ -227,7 +227,7 @@ export function MenuOverlay() {
             </div>
             {/* Slide methods */}
             <div className="mt-2 space-y-1.5">
-              <p className="text-blue-400 text-xs font-semibold">Slide (숙이기)</p>
+              <p className="text-blue-400 text-xs font-semibold">Slide (Duck)</p>
               <div className="flex items-center justify-center gap-2 flex-wrap">
                 <div className="flex items-center gap-1 bg-purple-500/10 border border-purple-500/20 rounded-lg px-2 py-1">
                   <span className="text-purple-400 text-sm">✌️</span>

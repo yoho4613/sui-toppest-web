@@ -363,12 +363,13 @@ export function ResultOverlay() {
       const finalDistance = Math.floor(gameStats.distance);
 
       // Save game record with all stats for reward calculation
+      // Note: elapsedTime is in seconds, convert to milliseconds for time_ms
       saveGameRecord({
         wallet_address: address,
         game_type: GAME_TYPE,
         score: finalDistance,
         distance: finalDistance,
-        time_ms: Math.floor(gameStats.elapsedTime),
+        time_ms: Math.floor(gameStats.elapsedTime * 1000),
         fever_count: gameStats.feverCount,
         perfect_count: gameStats.perfectCount,
         coin_count: gameStats.coinCount,
@@ -537,7 +538,7 @@ export function ResultOverlay() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-400">Time</span>
-              <span className="text-white font-mono">{formatTime(gameStats.elapsedTime)}</span>
+              <span className="text-white font-mono">{formatTime(gameStats.elapsedTime * 1000)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">Coins Collected</span>

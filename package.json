@@ -6,22 +6,30 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "node scripts/patch-next.js"
+  },
+  "overrides": {
+    "nanoid": "^3.3.11"
   },
   "dependencies": {
     "@mysten/dapp-kit": "^0.14.0",
     "@mysten/sui": "^1.0.0",
     "@mysten/zklogin": "^0.7.0",
-    "@react-three/drei": "^9.121.0",
-    "@react-three/fiber": "^8.17.0",
+    "@react-three/drei": "^9.88.0",
+    "@react-three/fiber": "^8.15.19",
     "@react-three/rapier": "^1.4.0",
     "@supabase/supabase-js": "^2.86.2",
     "@tanstack/react-query": "^5.50.0",
+    "autoprefixer": "^10.4.24",
     "framer-motion": "^11.0.0",
     "jwt-decode": "^4.0.0",
-    "next": "^15.5.12",
+    "nanoid": "^3.3.11",
+    "next": "^14.2.15",
+    "postcss": "^8.5.6",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "tailwindcss": "^3.4.19",
     "three": "^0.169.0",
     "zustand": "^5.0.0"
   },
@@ -30,9 +38,7 @@
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@types/three": "^0.169.0",
-    "autoprefixer": "^10.4.24",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.19",
+    "patch-package": "^8.0.1",
     "typescript": "^5.0.0"
   }
 }

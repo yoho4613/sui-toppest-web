@@ -7,7 +7,7 @@
  * 3. Pass session_token when calling saveGameRecord()
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 
 export interface TicketStatus {
   canPlay: boolean;
@@ -107,8 +107,8 @@ export function useGameAPI() {
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Store current game session token
-  const currentSessionRef = useRef<GameSession | null>(null);
+  // Store current game session token in localStorage for cross-component access
+  const SESSION_STORAGE_KEY = 'game_session_token';
 
   // Check ticket status
   const checkTickets = useCallback(async (
@@ -253,8 +253,10 @@ export function useGameAPI() {
         expires_at: data.expires_at,
       };
 
-      // Store session for later use
-      currentSessionRef.current = session;
+      // Store session in localStorage for cross-component access
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+      }
 
       return session;
     } catch (err) {
@@ -268,21 +270,32 @@ export function useGameAPI() {
 
   // Get current session token (if exists and not expired)
   const getCurrentSession = useCallback((): string | null => {
-    const session = currentSessionRef.current;
-    if (!session) return null;
+    if (typeof window === 'undefined') return null;
 
-    // Check if session is expired
-    if (Date.now() > session.expires_at) {
-      currentSessionRef.current = null;
+    const stored = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!stored) return null;
+
+    try {
+      const session: GameSession = JSON.parse(stored);
+
+      // Check if session is expired
+      if (Date.now() > session.expires_at) {
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+        return null;
+      }
+
+      return session.session_token;
+    } catch {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
       return null;
     }
-
-    return session.session_token;
   }, []);
 
   // Clear current session (call after game ends)
   const clearSession = useCallback(() => {
-    currentSessionRef.current = null;
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+    }
   }, []);
 
   // Save game record

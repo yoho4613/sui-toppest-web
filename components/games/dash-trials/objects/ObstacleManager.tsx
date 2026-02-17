@@ -183,11 +183,23 @@ function generateObstacles(
   return obstacles;
 }
 
-function generateCoins(startDistance: number, difficulty: DifficultyLevel, idCounter: { current: number }): CoinData[] {
+function generateCoins(
+  startDistance: number,
+  difficulty: DifficultyLevel,
+  obstacles: ObstacleData[],
+  idCounter: { current: number }
+): CoinData[] {
   const coins: CoinData[] = [];
   const segmentLength = 100;
   const coinInterval = difficulty === 'tutorial' ? 16 : difficulty === 'easy' ? 14 :
                        difficulty === 'medium' ? 12 : difficulty === 'hard' ? 10 : 9;
+
+  // Helper to check if position overlaps with any obstacle
+  const isOverlappingObstacle = (distance: number, lane: -1 | 0 | 1): boolean => {
+    return obstacles.some(obs =>
+      Math.abs(obs.spawnDistance - distance) < 4 && obs.lane === lane
+    );
+  };
 
   let currentDistance = startDistance + 5 + Math.random() * 3;
 
@@ -195,12 +207,16 @@ function generateCoins(startDistance: number, difficulty: DifficultyLevel, idCou
     currentDistance += coinInterval + Math.random() * 8;
     if (currentDistance >= startDistance + segmentLength) break;
     if (Math.random() < 0.5) {
-      coins.push({
-        id: idCounter.current++,
-        lane: [0, -1, 1][Math.floor(Math.random() * 3)] as -1 | 0 | 1,
-        spawnDistance: currentDistance,
-        collected: false,
-      });
+      const lane = [0, -1, 1][Math.floor(Math.random() * 3)] as -1 | 0 | 1;
+      // Only spawn if not overlapping with obstacle
+      if (!isOverlappingObstacle(currentDistance, lane)) {
+        coins.push({
+          id: idCounter.current++,
+          lane,
+          spawnDistance: currentDistance,
+          collected: false,
+        });
+      }
     }
   }
 
@@ -208,13 +224,20 @@ function generateCoins(startDistance: number, difficulty: DifficultyLevel, idCou
   if (Math.random() > 0.7) {
     const trailStart = startDistance + 40 + Math.random() * 40;
     const trailLane = [0, -1, 1][Math.floor(Math.random() * 3)] as -1 | 0 | 1;
-    for (let i = 0; i < 5; i++) {
-      coins.push({
-        id: idCounter.current++,
-        lane: trailLane,
-        spawnDistance: trailStart + i * 3,
-        collected: false,
-      });
+    // Check if trail start position is safe
+    if (!isOverlappingObstacle(trailStart, trailLane)) {
+      for (let i = 0; i < 5; i++) {
+        const trailDistance = trailStart + i * 3;
+        // Only add coin if position is safe
+        if (!isOverlappingObstacle(trailDistance, trailLane)) {
+          coins.push({
+            id: idCounter.current++,
+            lane: trailLane,
+            spawnDistance: trailDistance,
+            collected: false,
+          });
+        }
+      }
     }
   }
   return coins;
@@ -530,7 +553,7 @@ export function ObstacleManager() {
         const segmentDifficulty: DifficultyLevel = d < SAFE_START_DISTANCE + 200 ? 'tutorial' : 'easy';
         const segmentObs = generateObstacles(d, segmentDifficulty, 0.4, 0, idCounterRef.current);
         obstaclesRef.current.push(...segmentObs);
-        coinsRef.current.push(...generateCoins(d, segmentDifficulty, idCounterRef.current));
+        coinsRef.current.push(...generateCoins(d, segmentDifficulty, segmentObs, idCounterRef.current));
         potionsRef.current.push(...generatePotions(d, segmentDifficulty, segmentObs, idCounterRef.current));
       }
       lastGeneratedDistanceRef.current = SAFE_START_DISTANCE + 300;
@@ -555,7 +578,7 @@ export function ObstacleManager() {
 
       const newObs = generateObstacles(startDist, difficulty, spawnRate, elapsedTime, idCounterRef.current);
       obstaclesRef.current.push(...newObs);
-      coinsRef.current.push(...generateCoins(startDist, difficulty, idCounterRef.current));
+      coinsRef.current.push(...generateCoins(startDist, difficulty, newObs, idCounterRef.current));
       potionsRef.current.push(...generatePotions(startDist, difficulty, newObs, idCounterRef.current));
 
       lastGeneratedDistanceRef.current = startDist + 100;

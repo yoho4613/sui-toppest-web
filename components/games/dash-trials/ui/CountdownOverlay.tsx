@@ -225,15 +225,30 @@ export function MenuOverlay() {
                 Right →
               </div>
             </div>
-            {/* Swipe gestures - more visible */}
+            {/* Slide methods */}
+            <div className="mt-2 space-y-1.5">
+              <p className="text-blue-400 text-xs font-semibold">Slide (숙이기)</p>
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1 bg-purple-500/10 border border-purple-500/20 rounded-lg px-2 py-1">
+                  <span className="text-purple-400 text-sm">✌️</span>
+                  <span className="text-gray-400 text-xs">2-Finger</span>
+                </div>
+                <div className="flex items-center gap-1 bg-blue-500/10 border border-blue-500/20 rounded-lg px-2 py-1">
+                  <span className="text-blue-400 text-sm">↓</span>
+                  <span className="text-gray-400 text-xs">Swipe Down</span>
+                </div>
+                <div className="flex items-center gap-1 bg-orange-500/10 border border-orange-500/20 rounded-lg px-2 py-1">
+                  <span className="text-orange-400 text-sm">👆</span>
+                  <span className="text-gray-400 text-xs">Long Press</span>
+                </div>
+              </div>
+              <p className="text-gray-500 text-xs text-center">Hold to maintain slide</p>
+            </div>
+            {/* Jump */}
             <div className="flex items-center justify-center gap-2 mt-2">
               <div className="flex items-center gap-1 bg-cyan-500/10 border border-cyan-500/20 rounded-lg px-3 py-1.5">
                 <span className="text-cyan-400 text-sm">↑</span>
-                <span className="text-gray-400 text-xs">Swipe Jump</span>
-              </div>
-              <div className="flex items-center gap-1 bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-1.5">
-                <span className="text-blue-400 text-sm">↓</span>
-                <span className="text-gray-400 text-xs">Swipe Slide</span>
+                <span className="text-gray-400 text-xs">Swipe Up / Middle Tap = Jump</span>
               </div>
             </div>
           </div>

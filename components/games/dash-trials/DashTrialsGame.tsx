@@ -12,6 +12,7 @@ import { CountdownOverlay, MenuOverlay, ResultOverlay } from './ui/CountdownOver
 import { useControls } from './hooks/useControls';
 import { useGameStore } from './hooks/useGameStore';
 import { useGameAudio } from './hooks/useGameAudio';
+import { useDashTrialsSounds } from './hooks/useGameSounds';
 
 // Game loop is now integrated into ObstacleManager's useFrame for better performance
 // This eliminates the double animation loop (requestAnimationFrame + Three.js useFrame)
@@ -74,6 +75,12 @@ function GameScene() {
 // Controls wrapper
 function ControlsWrapper() {
   useControls();
+  return null;
+}
+
+// Sound effects manager
+function SoundManager() {
+  useDashTrialsSounds();
   return null;
 }
 
@@ -214,6 +221,9 @@ export function DashTrialsGame() {
 
       {/* Controls */}
       <ControlsWrapper />
+
+      {/* Sound Effects */}
+      <SoundManager />
 
       {/* UI Overlays */}
       <GameHUD />

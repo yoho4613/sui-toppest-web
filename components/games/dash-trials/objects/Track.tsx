@@ -174,8 +174,8 @@ export function Track() {
         </mesh>
       ))}
 
-      {/* 3D Lane divider rails with pulsing glow */}
-      {[-LANE_WIDTH / 2 - LANE_WIDTH, -LANE_WIDTH / 2, LANE_WIDTH / 2, LANE_WIDTH / 2 + LANE_WIDTH].map(
+      {/* 3D Lane divider rails with pulsing glow - only inner dividers between lanes */}
+      {[-LANE_WIDTH / 2, LANE_WIDTH / 2].map(
         (x, i) => (
           <group key={`divider-${i}`}>
             {/* Rail base - metallic */}

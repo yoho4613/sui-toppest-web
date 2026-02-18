@@ -86,26 +86,15 @@ function SoundManager() {
 
 // Audio manager with mute button (hidden during gameplay for fullscreen)
 function AudioManager() {
-  const { toggleMute } = useGameAudio();
+  const { toggleMute, isMuted } = useGameAudio();
   const status = useGameStore((state) => state.status);
-  const [isMuted, setIsMuted] = useState(false);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('dashTrials_audioMuted');
-    setIsMuted(saved === 'true');
-  }, []);
-
-  const handleToggle = () => {
-    const newMuted = toggleMute();
-    setIsMuted(newMuted);
-  };
 
   // Hide during gameplay for fullscreen experience
   const isPlaying = status === 'playing' || status === 'countdown';
 
   return (
     <button
-      onClick={handleToggle}
+      onClick={toggleMute}
       className={`absolute top-4 right-4 z-50 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/50 backdrop-blur-sm border border-white/20 flex items-center justify-center text-base sm:text-xl hover:bg-black/70 transition-all duration-300 ${
         isPlaying ? 'opacity-30 scale-75' : 'opacity-100 scale-100'
       }`}

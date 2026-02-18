@@ -5,6 +5,7 @@ import { useSuiWallet } from '@/hooks/useSuiWallet';
 import { useZkLogin } from '@/hooks/useZkLogin';
 import { useAppStore } from '@/stores/useAppStore';
 import { LoginScreen } from '@/components/app';
+import { SoundControl } from '@/components/app/SoundControl';
 
 // Game data - only active games
 const GAMES = [
@@ -40,8 +41,10 @@ function GameLobby() {
             </div>
           </div>
 
-          {/* Ticket Count */}
-          <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 rounded-xl px-3 py-2">
+          {/* Sound Control & Ticket Count */}
+          <div className="flex items-center gap-2">
+            <SoundControl />
+            <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 rounded-xl px-3 py-2">
             {isInitializing ? (
               <div className="flex items-center justify-center">
                 <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
@@ -66,6 +69,7 @@ function GameLobby() {
                 <span className="text-gray-400 text-sm">3/3</span>
               </div>
             )}
+          </div>
           </div>
         </div>
       </div>

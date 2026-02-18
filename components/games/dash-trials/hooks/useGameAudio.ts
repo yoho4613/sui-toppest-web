@@ -1,23 +1,26 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useGameStore } from './useGameStore';
+import { useSoundSettings } from '@/hooks/useSoundSettings';
 
 const BGM_PATH = '/audio/dash-trials-bgm.mp3';
 const FADE_DURATION = 1000; // 1 second fade
 
 interface AudioState {
   bgm: HTMLAudioElement | null;
-  isMuted: boolean;
-  volume: number;
 }
 
 export function useGameAudio() {
   const status = useGameStore((state) => state.status);
   const isFeverMode = useGameStore((state) => state.isFeverMode);
 
+  // Use global sound settings
+  const getEffectiveMusicVolume = useSoundSettings((s) => s.getEffectiveMusicVolume);
+  const isMuted = useSoundSettings((s) => s.isMuted);
+  const isMusicMuted = useSoundSettings((s) => s.isMusicMuted);
+  const toggleMute = useSoundSettings((s) => s.toggleMute);
+
   const audioRef = useRef<AudioState>({
     bgm: null,
-    isMuted: false,
-    volume: 0.5,
   });
 
   const fadeIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -33,12 +36,6 @@ export function useGameAudio() {
 
     audioRef.current.bgm = audio;
 
-    // Load mute preference
-    const savedMute = localStorage.getItem('dashTrials_audioMuted');
-    if (savedMute === 'true') {
-      audioRef.current.isMuted = true;
-    }
-
     return () => {
       if (fadeIntervalRef.current) {
         clearInterval(fadeIntervalRef.current);
@@ -51,13 +48,14 @@ export function useGameAudio() {
   // Fade in audio
   const fadeIn = useCallback(() => {
     const audio = audioRef.current.bgm;
-    if (!audio || audioRef.current.isMuted) return;
+    const effectiveVolume = getEffectiveMusicVolume();
+    if (!audio || effectiveVolume === 0) return;
 
     if (fadeIntervalRef.current) {
       clearInterval(fadeIntervalRef.current);
     }
 
-    const targetVolume = audioRef.current.volume;
+    const targetVolume = effectiveVolume;
     const step = targetVolume / (FADE_DURATION / 50);
 
     audio.volume = 0;
@@ -75,7 +73,7 @@ export function useGameAudio() {
         audio.volume += step;
       }
     }, 50);
-  }, []);
+  }, [getEffectiveMusicVolume]);
 
   // Fade out audio
   const fadeOut = useCallback(() => {
@@ -111,43 +109,37 @@ export function useGameAudio() {
     }
   }, [status, fadeIn, fadeOut]);
 
+  // Update volume when global settings change
+  useEffect(() => {
+    const audio = audioRef.current.bgm;
+    if (!audio) return;
+
+    const effectiveVolume = getEffectiveMusicVolume();
+
+    if (status === 'playing' || status === 'countdown') {
+      if (effectiveVolume === 0) {
+        audio.volume = 0;
+      } else {
+        // Apply fever mode boost
+        const feverBoost = isFeverMode ? 1.3 : 1;
+        audio.volume = Math.min(1, effectiveVolume * feverBoost);
+      }
+    }
+  }, [isMuted, isMusicMuted, getEffectiveMusicVolume, status, isFeverMode]);
+
   // Increase volume during fever mode
   useEffect(() => {
     const audio = audioRef.current.bgm;
-    if (!audio || audioRef.current.isMuted) return;
+    const effectiveVolume = getEffectiveMusicVolume();
+    if (!audio || effectiveVolume === 0) return;
 
     if (status === 'playing') {
-      const baseVolume = audioRef.current.volume;
-      audio.volume = isFeverMode ? Math.min(1, baseVolume * 1.3) : baseVolume;
+      audio.volume = isFeverMode ? Math.min(1, effectiveVolume * 1.3) : effectiveVolume;
     }
-  }, [isFeverMode, status]);
-
-  // Toggle mute
-  const toggleMute = useCallback(() => {
-    const audio = audioRef.current.bgm;
-    audioRef.current.isMuted = !audioRef.current.isMuted;
-
-    if (audio) {
-      audio.muted = audioRef.current.isMuted;
-    }
-
-    localStorage.setItem('dashTrials_audioMuted', String(audioRef.current.isMuted));
-
-    return audioRef.current.isMuted;
-  }, []);
-
-  // Set volume
-  const setVolume = useCallback((volume: number) => {
-    audioRef.current.volume = Math.max(0, Math.min(1, volume));
-    const audio = audioRef.current.bgm;
-    if (audio && !audioRef.current.isMuted) {
-      audio.volume = audioRef.current.volume;
-    }
-  }, []);
+  }, [isFeverMode, status, getEffectiveMusicVolume]);
 
   return {
     toggleMute,
-    setVolume,
-    isMuted: audioRef.current.isMuted,
+    isMuted: isMuted || isMusicMuted,
   };
 }

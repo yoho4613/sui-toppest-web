@@ -260,7 +260,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       speed: baseSpeed * FEVER_MULTIPLIER,
     });
 
-    // Fever ends after 3 seconds
+    // Fever ends after 5 seconds
     addTimeout(() => {
       const current = get();
       set({
@@ -268,7 +268,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         speed: current.baseSpeed,
         consecutiveCoins: 0,
       });
-    }, 3000);
+    }, 5000);
   },
 
   // Combined update function for distance, time, health, and difficulty (matching Neon Dash)

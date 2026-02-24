@@ -13,9 +13,17 @@ const GAMES = [
     id: 'dash-trials',
     name: 'Dash Trials',
     image: '🏃',
-    tag: 'NEW',
-    tagColor: 'bg-green-500',
+    tag: '',
+    tagColor: '',
     description: '3D Time Attack Runner',
+  },
+  {
+    id: 'cosmic-flap',
+    name: 'Cosmic Flap',
+    image: '🚀',
+    tag: 'NEW',
+    tagColor: 'bg-purple-500',
+    description: 'Space Flappy Adventure',
   },
 ];
 

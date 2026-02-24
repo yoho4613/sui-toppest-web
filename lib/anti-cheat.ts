@@ -15,23 +15,62 @@ export const GAME_LIMITS = {
   'dash-trials': {
     // Maximum speed in m/s (based on game physics)
     // Base speed 8 + max fever boost (~1.5x) = ~12 m/s max sustained
-    MAX_SPEED_MS: 15, // With buffer for acceleration spikes
+    // Phase 1 강화: 15 → 12 (더 엄격한 속도 제한)
+    MAX_SPEED_MS: 12,
 
     // Minimum time for any valid game (milliseconds)
-    MIN_GAME_TIME_MS: 5000, // 5 seconds minimum
+    // Phase 1 강화: 5초 → 10초 (너무 짧은 게임 방지)
+    MIN_GAME_TIME_MS: 10000,
 
-    // Maximum time for a single game session (30 minutes)
-    MAX_GAME_TIME_MS: 30 * 60 * 1000,
+    // Maximum time for a single game session
+    // Phase 1 강화: 30분 → 10분 (긴 세션 악용 방지)
+    MAX_GAME_TIME_MS: 10 * 60 * 1000,
 
     // Coin/item collection limits per 100 meters
-    MAX_COINS_PER_100M: 20,
+    // Phase 1 강화: 20 → 15 (비정상적 코인 수집 차단)
+    MAX_COINS_PER_100M: 15,
     MAX_POTIONS_PER_100M: 5,
-    MAX_FEVER_COUNT_PER_100M: 2,
+    // Phase 1 강화: 2 → 1 (Fever 남용 방지)
+    MAX_FEVER_COUNT_PER_100M: 1,
 
     // Perfect dodge limits (based on obstacle spawn rate)
-    MAX_PERFECT_PER_100M: 10,
+    // Phase 1 강화: 10 → 5 (완벽한 회피 남용 방지)
+    MAX_PERFECT_PER_100M: 5,
 
     // Maximum reward per game (redundant with club-rewards.ts but explicit)
+    MAX_CLUB_PER_GAME: 100,
+  },
+
+  'cosmic-flap': {
+    // Maximum speed in m/s (based on flappy game physics)
+    // Initial speed 4 + max progression = ~8 m/s
+    MAX_SPEED_MS: 10,
+
+    // Minimum time for any valid game (milliseconds)
+    // Flappy games tend to be shorter - minimum 5 seconds
+    MIN_GAME_TIME_MS: 5000,
+
+    // Maximum time for a single game session (10 minutes)
+    MAX_GAME_TIME_MS: 10 * 60 * 1000,
+
+    // Coin/item collection limits per 100 meters
+    // Items spawn at 15% rate, ~1 per 6 obstacles
+    MAX_COINS_PER_100M: 20,
+    MAX_POTIONS_PER_100M: 10, // Shield + Slow items
+
+    // Tunnel passages (similar to fever) - 1 per 500m after 500m mark
+    MAX_FEVER_COUNT_PER_100M: 0.5,
+
+    // UFO dodges (similar to perfect) - 1 per 1000m after 1000m mark
+    MAX_PERFECT_PER_100M: 0.2,
+
+    // Maximum obstacles per 100m (pipe gap ~2.5, so ~40 per 100m max)
+    MAX_OBSTACLES_PER_100M: 50,
+
+    // Maximum flaps per second (human limit ~10 taps/sec)
+    MAX_FLAPS_PER_SECOND: 15,
+
+    // Maximum reward per game
     MAX_CLUB_PER_GAME: 100,
   },
 } as const;
@@ -41,8 +80,9 @@ export const GAME_LIMITS = {
 // ============================================
 
 export const SESSION_CONFIG = {
-  // Session token expiry (10 minutes - covers longest reasonable game)
-  TOKEN_EXPIRY_MS: 10 * 60 * 1000,
+  // Session token expiry
+  // Phase 1 강화: 10분 → 3분 (토큰 재사용 공격 윈도우 축소)
+  TOKEN_EXPIRY_MS: 3 * 60 * 1000,
 
   // Maximum games per wallet per hour
   MAX_GAMES_PER_HOUR: 20,
@@ -79,6 +119,12 @@ export interface GameSubmission {
   potion_count?: number;
   difficulty?: string;
   session_token?: string;
+  // Cosmic Flap specific fields
+  obstacles_passed?: number;
+  flap_count?: number;
+  tunnels_passed?: number;
+  ufos_passed?: number;
+  items_collected?: number;
 }
 
 export interface ValidationResult {
@@ -118,6 +164,37 @@ export function verifySessionSignature(
     Buffer.from(signature),
     Buffer.from(expected)
   );
+}
+
+// ============================================
+// Server-side Difficulty Calculation
+// ============================================
+
+/**
+ * Calculate difficulty based on game time (server-authoritative)
+ * Phase 1: 클라이언트 난이도 무시, 시간 기반 서버 계산
+ */
+export function calculateServerDifficulty(timeMs: number): string {
+  const seconds = timeMs / 1000;
+  if (seconds < 30) return 'easy';       // 0-30초
+  if (seconds < 60) return 'medium';     // 30-60초
+  if (seconds < 120) return 'hard';      // 1-2분
+  return 'extreme';                       // 2분+
+}
+
+// ============================================
+// Fever Validation
+// ============================================
+
+/**
+ * Validate fever count against coin collection
+ * Phase 1: Fever는 10개 연속 코인 수집 필요
+ * @returns true if valid, false if suspicious
+ */
+export function validateFeverCount(feverCount: number, coinCount: number): boolean {
+  // 각 Fever 활성화에는 최소 10개 코인 필요
+  const maxPossibleFever = Math.floor(coinCount / 10);
+  return feverCount <= maxPossibleFever;
 }
 
 // ============================================
@@ -177,6 +254,58 @@ export function validateGameSubmission(
     }
   }
 
+  // 3b. Cosmic Flap specific validation
+  if (submission.game_type === 'cosmic-flap') {
+    const {
+      obstacles_passed = 0,
+      flap_count = 0,
+      tunnels_passed = 0,
+      ufos_passed = 0,
+    } = submission;
+
+    const cosmicLimits = limits as typeof GAME_LIMITS['cosmic-flap'];
+
+    // Score should roughly equal obstacles passed in flappy games
+    if (Math.abs(score - obstacles_passed) > 5) {
+      warnings.push(`Score/obstacles mismatch: score=${score}, obstacles=${obstacles_passed}`);
+    }
+
+    // Flap count validation (detect auto-tappers)
+    const flapsPerSecond = flap_count / timeSeconds;
+    if (flapsPerSecond > cosmicLimits.MAX_FLAPS_PER_SECOND) {
+      errors.push(
+        `Too many flaps: ${flapsPerSecond.toFixed(1)} flaps/sec > ${cosmicLimits.MAX_FLAPS_PER_SECOND} max`
+      );
+    }
+
+    // Minimum flaps required (can't play without flapping)
+    const minFlapsRequired = Math.max(1, Math.floor(timeSeconds / 2)); // At least 1 flap per 2 seconds
+    if (flap_count < minFlapsRequired && distance > 50) {
+      errors.push(
+        `Too few flaps: ${flap_count} flaps in ${timeSeconds.toFixed(1)}s (min: ${minFlapsRequired})`
+      );
+    }
+
+    // Obstacles per distance validation
+    const cosmicDistanceUnits = Math.max(distance / 100, 1);
+    const obstaclesPerUnit = obstacles_passed / cosmicDistanceUnits;
+    if (obstaclesPerUnit > cosmicLimits.MAX_OBSTACLES_PER_100M) {
+      errors.push(
+        `Too many obstacles: ${obstacles_passed} in ${distance}m`
+      );
+    }
+
+    // Tunnel validation (only spawn after 500m)
+    if (tunnels_passed > 0 && distance < 500) {
+      warnings.push(`Tunnels passed before 500m threshold`);
+    }
+
+    // UFO validation (only spawn after 1000m)
+    if (ufos_passed > 0 && distance < 1000) {
+      warnings.push(`UFOs passed before 1000m threshold`);
+    }
+  }
+
   // 4. Item collection rate validation
   const distanceUnits = Math.max(distance / 100, 1); // Per 100 meters
 
@@ -204,7 +333,16 @@ export function validateGameSubmission(
     );
   }
 
-  // 5. Negative value check
+  // 5. Fever vs Coin consistency validation (Phase 1)
+  // Fever requires 10 consecutive coins to activate
+  if (!validateFeverCount(fever_count, coin_count)) {
+    const maxPossibleFever = Math.floor(coin_count / 10);
+    errors.push(
+      `Impossible fever count: ${fever_count} fevers with only ${coin_count} coins (max possible: ${maxPossibleFever})`
+    );
+  }
+
+  // 6. Negative value check
   if (score < 0 || distance < 0 || time_ms < 0) {
     errors.push('Negative values detected');
   }

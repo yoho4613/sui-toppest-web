@@ -22,6 +22,7 @@ import {
   validateGameSubmission,
   checkRateLimit,
   logSuspiciousActivity,
+  calculateServerDifficulty,
   type GameSubmission,
 } from '@/lib/anti-cheat';
 
@@ -50,9 +51,19 @@ function buildGameMetadata(gameType: string, submission: GameSubmission) {
         potion_count: submission.potion_count || 0,
         difficulty: submission.difficulty || 'medium',
       };
-    // Add more game types here as they are developed
-    // case 'puzzle-quest':
-    //   return { level: submission.level, combo_count: submission.combo_count };
+    case 'cosmic-flap':
+      return {
+        obstacles_passed: submission.obstacles_passed || 0,
+        flap_count: submission.flap_count || 0,
+        tunnels_passed: submission.tunnels_passed || 0,
+        ufos_passed: submission.ufos_passed || 0,
+        coin_count: submission.coin_count || 0,
+        items_collected: submission.items_collected || 0,
+        // Map to existing reward fields for compatibility
+        fever_count: submission.tunnels_passed || 0,  // tunnels -> fever bonus
+        perfect_count: submission.ufos_passed || 0,   // ufos -> perfect bonus
+        difficulty: submission.difficulty || 'medium',
+      };
     default:
       // For unknown games, return any provided metadata
       return {
@@ -81,6 +92,12 @@ export async function POST(request: NextRequest) {
       coin_count,
       potion_count,
       difficulty,
+      // Cosmic Flap specific fields
+      obstacles_passed,
+      flap_count,
+      tunnels_passed,
+      ufos_passed,
+      items_collected,
       // Anti-cheat: session token from /api/game/session
       session_token,
       // Client info (optional, sent from browser)
@@ -125,6 +142,18 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Game submission validation (physics-based checks)
+    // Phase 1: 서버에서 난이도 재계산 (클라이언트 난이도 무시)
+    const serverDifficulty = calculateServerDifficulty(time_ms || 0);
+
+    // Log if client difficulty differs from server calculation
+    if (difficulty && difficulty !== serverDifficulty) {
+      logSuspiciousActivity(wallet_address, 'Difficulty mismatch', {
+        client_difficulty: difficulty,
+        server_difficulty: serverDifficulty,
+        time_ms: time_ms || 0,
+      });
+    }
+
     const submission: GameSubmission = {
       wallet_address,
       game_type,
@@ -135,7 +164,13 @@ export async function POST(request: NextRequest) {
       perfect_count: perfect_count || 0,
       coin_count: coin_count || 0,
       potion_count: potion_count || 0,
-      difficulty: difficulty || 'medium',
+      difficulty: serverDifficulty, // Phase 1: 서버 계산 난이도 사용
+      // Cosmic Flap specific fields
+      obstacles_passed: obstacles_passed || 0,
+      flap_count: flap_count || 0,
+      tunnels_passed: tunnels_passed || 0,
+      ufos_passed: ufos_passed || 0,
+      items_collected: items_collected || 0,
     };
 
     const validationResult = validateGameSubmission(submission);

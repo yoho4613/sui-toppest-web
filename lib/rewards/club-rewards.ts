@@ -54,10 +54,29 @@ const DASH_TRIALS_CONFIG: GameRewardConfig = {
   },
 };
 
+// Cosmic Flap reward configuration (same structure as Dash Trials)
+// 거리에 비례: 100m = 1 CLUB
+// feverCount → tunnelsPassed, perfectCount → ufosPassed
+const COSMIC_FLAP_CONFIG: GameRewardConfig = {
+  gameType: 'cosmic-flap',
+  clubPerMeter: 0.01,            // 100m = 1 CLUB (same as Dash)
+  feverBonusPercent: 10,         // 10% bonus per tunnel passed
+  perfectDodgeBonus: 0.1,        // 0.1 $CLUB per UFO avoided
+  coinBonus: 0.05,               // 0.05 $CLUB per coin
+  maxRewardPerGame: 100,         // Max 100 $CLUB per game
+  difficultyMultipliers: {
+    tutorial: 0.5,
+    easy: 0.8,
+    medium: 1.0,
+    hard: 1.2,
+    extreme: 1.5,
+  },
+};
+
 // Store all game configurations
 const GAME_CONFIGS: Record<string, GameRewardConfig> = {
   'dash-trials': DASH_TRIALS_CONFIG,
-  // Add more games here as they're developed
+  'cosmic-flap': COSMIC_FLAP_CONFIG,
 };
 
 /**

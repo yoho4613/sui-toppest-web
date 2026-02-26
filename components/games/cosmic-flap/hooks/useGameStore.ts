@@ -17,6 +17,7 @@ import {
   DIFFICULTY,
   ITEM_EFFECTS,
   SCORING,
+  TUNNEL,
 } from '../constants';
 
 // ============================================
@@ -281,6 +282,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set((state) => ({
       tunnelsPassed: state.tunnelsPassed + 1,
       obstaclesPassed: state.obstaclesPassed + 1,
+      distance: state.distance + SCORING.TUNNEL_BONUS,
     }));
   },
 

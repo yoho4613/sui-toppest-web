@@ -19,9 +19,14 @@ interface PipeProps {
   gapY: number;
   gapSize: number;
   id: string;
+  color?: string;
+  emissiveColor?: string;
+  pipeWidth?: number;
 }
 
-export function Pipe({ position, gapY, gapSize }: PipeProps) {
+export function Pipe({ position, gapY, gapSize, color, emissiveColor, pipeWidth }: PipeProps) {
+  const width = pipeWidth ?? VISUALS.PIPE_WIDTH;
+
   // Calculate pipe heights
   const gapTop = gapY + gapSize / 2;
   const gapBottom = gapY - gapSize / 2;
@@ -37,19 +42,19 @@ export function Pipe({ position, gapY, gapSize }: PipeProps) {
   const pipeMaterial = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
-        color: VISUALS.PIPE_COLOR,
+        color: color ?? VISUALS.PIPE_COLOR,
       }),
-    []
+    [color]
   );
 
   const glowMaterial = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
-        color: VISUALS.PIPE_EMISSIVE,
+        color: emissiveColor ?? VISUALS.PIPE_EMISSIVE,
         transparent: true,
         opacity: 0.5,
       }),
-    []
+    [emissiveColor]
   );
 
   return (
@@ -59,11 +64,11 @@ export function Pipe({ position, gapY, gapSize }: PipeProps) {
         <group position={[0, topY, 0]}>
           {/* Main body */}
           <mesh material={pipeMaterial}>
-            <boxGeometry args={[VISUALS.PIPE_WIDTH, topHeight, VISUALS.PIPE_WIDTH]} />
+            <boxGeometry args={[width, topHeight, width]} />
           </mesh>
           {/* Glow edge at bottom */}
           <mesh position={[0, -topHeight / 2 + 0.05, 0]} material={glowMaterial}>
-            <boxGeometry args={[VISUALS.PIPE_WIDTH + 0.1, 0.1, VISUALS.PIPE_WIDTH + 0.1]} />
+            <boxGeometry args={[width + 0.1, 0.1, width + 0.1]} />
           </mesh>
         </group>
       )}
@@ -73,11 +78,11 @@ export function Pipe({ position, gapY, gapSize }: PipeProps) {
         <group position={[0, bottomY, 0]}>
           {/* Main body */}
           <mesh material={pipeMaterial}>
-            <boxGeometry args={[VISUALS.PIPE_WIDTH, bottomHeight, VISUALS.PIPE_WIDTH]} />
+            <boxGeometry args={[width, bottomHeight, width]} />
           </mesh>
           {/* Glow edge at top */}
           <mesh position={[0, bottomHeight / 2 - 0.05, 0]} material={glowMaterial}>
-            <boxGeometry args={[VISUALS.PIPE_WIDTH + 0.1, 0.1, VISUALS.PIPE_WIDTH + 0.1]} />
+            <boxGeometry args={[width + 0.1, 0.1, width + 0.1]} />
           </mesh>
         </group>
       )}
@@ -85,10 +90,8 @@ export function Pipe({ position, gapY, gapSize }: PipeProps) {
       {/* Center glow line (laser effect) */}
       <mesh position={[0, gapY, 0]}>
         <boxGeometry args={[0.02, gapSize, 0.02]} />
-        <meshBasicMaterial color={VISUALS.PIPE_COLOR} transparent opacity={0.2} />
+        <meshBasicMaterial color={color ?? VISUALS.PIPE_COLOR} transparent opacity={0.2} />
       </mesh>
-
-      {/* Emissive glow edges replace expensive pointLights */}
     </group>
   );
 }

@@ -54,17 +54,6 @@ export function Bird() {
     []
   );
 
-  const slowAuraMaterial = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        color: VISUALS.SLOW_COLOR,
-        transparent: true,
-        opacity: 0.2,
-        side: THREE.DoubleSide,
-      }),
-    []
-  );
-
   useFrame((_, delta) => {
     if (!groupRef.current) return;
 
@@ -105,7 +94,6 @@ export function Bird() {
     }
   });
 
-  const isSlowed = useGameStore((s) => s.isSlowed);
   const hasShield = useGameStore((s) => s.hasShield);
 
   return (
@@ -141,12 +129,6 @@ export function Bird() {
         <sphereGeometry args={[0.6, 8, 8]} />
       </mesh>
 
-      {/* Slow aura effect */}
-      {isSlowed && (
-        <mesh material={slowAuraMaterial}>
-          <sphereGeometry args={[0.7, 8, 8]} />
-        </mesh>
-      )}
     </group>
   );
 }

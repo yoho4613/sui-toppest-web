@@ -32,22 +32,22 @@ export const WORLD = {
 // ============================================
 export const DIFFICULTY = {
   // Speed
-  INITIAL_SPEED: 4,                // Initial obstacle speed
-  MAX_SPEED: 8,                    // Maximum obstacle speed
+  INITIAL_SPEED: 3.5,              // Initial obstacle speed (느린 시작)
+  MAX_SPEED: 6.5,                  // Maximum obstacle speed (기존 8 → 6.5)
   SPEED_INCREASE_RATE: 0.015,      // Speed increase per second
 
   // Gap size
-  INITIAL_GAP: 3.5,                // Initial gap between pipes
+  INITIAL_GAP: 4.0,               // Initial gap between pipes (넓은 시작)
   MIN_GAP: 2.2,                    // Minimum gap (hardest)
   GAP_DECREASE_RATE: 0.008,        // Gap decrease per second
 
   // Spawn timing
-  INITIAL_SPAWN_DISTANCE: 8,       // Initial distance between obstacles
-  MIN_SPAWN_DISTANCE: 5,           // Minimum distance between obstacles
+  INITIAL_SPAWN_DISTANCE: 10,      // Initial distance between obstacles (넓은 간격)
+  MIN_SPAWN_DISTANCE: 5.5,         // Minimum distance between obstacles (기존 5 → 5.5)
   SPAWN_DECREASE_RATE: 0.005,      // Spawn distance decrease per second
 
   // Difficulty ramp
-  RAMP_UP_SECONDS: 30,             // Seconds to reach max difficulty
+  RAMP_UP_SECONDS: 120,            // Seconds to reach max difficulty (기존 60 → 120, 2분)
 };
 
 // ============================================

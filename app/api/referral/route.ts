@@ -11,6 +11,7 @@ import {
   getReferralsByWallet,
   getReferralStats,
   getUserReferralCode,
+  updateQuestProgress,
 } from '@/lib/db';
 import { isValidSuiAddress } from '@/lib/referral';
 
@@ -69,6 +70,14 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    // Update referrer's quest progress for referral quests
+    if (result.referrerWallet) {
+      Promise.all([
+        updateQuestProgress(result.referrerWallet, 'referral_daily', 1),
+        updateQuestProgress(result.referrerWallet, 'referral_weekly', 1),
+      ]).catch((err) => console.error('Failed to update referral quest progress:', err));
     }
 
     return NextResponse.json({

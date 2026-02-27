@@ -15,6 +15,7 @@ import { useGameStore } from '../hooks/useGameStore';
 import { useGameAPI } from '@/hooks/useGameAPI';
 import { useSuiWallet } from '@/hooks/useSuiWallet';
 import { useZkLogin } from '@/hooks/useZkLogin';
+import { useQuestStore } from '@/hooks/useQuestStore';
 import { calculateClubRewards, type RewardResult } from '@/lib/rewards/club-rewards';
 import { GAME_TYPE } from '../constants';
 
@@ -36,13 +37,13 @@ export function MenuOverlay({ onStart }: MenuOverlayProps) {
       exit={{ opacity: 0 }}
       className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-20"
     >
-      <div className="text-center space-y-6 p-6">
+      <div className="text-center space-y-4 sm:space-y-6 p-4 sm:p-6">
         {/* Title */}
         <motion.h1
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ delay: 0.1 }}
-          className="text-4xl font-bold font-orbitron text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500"
+          className="text-3xl sm:text-4xl font-bold font-orbitron text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500"
         >
           COSMIC FLAP
         </motion.h1>
@@ -167,6 +168,7 @@ export function ResultOverlay({ onPlayAgain, onMenu }: ResultOverlayProps) {
   const { address: suiWalletAddress } = useSuiWallet();
   const { address: zkAddress } = useZkLogin();
   const walletAddress = suiWalletAddress || zkAddress;
+  const refreshQuestsAfterGame = useQuestStore((state) => state.refreshAfterGame);
 
   // Calculate rewards (once, with error protection)
   useEffect(() => {
@@ -216,6 +218,9 @@ export function ResultOverlay({ onPlayAgain, onMenu }: ResultOverlayProps) {
         };
         await saveGameRecord(recordData);
         setSaved(true);
+
+        // Refresh quest progress after game record saved
+        refreshQuestsAfterGame(walletAddress);
       } catch (error) {
         console.error('Failed to save record:', error);
       } finally {
@@ -240,17 +245,17 @@ export function ResultOverlay({ onPlayAgain, onMenu }: ResultOverlayProps) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm z-20 p-4"
+      className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm z-20 p-3 sm:p-4"
     >
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ delay: 0.1 }}
-        className="bg-slate-900/90 rounded-2xl p-6 max-w-sm w-full space-y-4 border border-slate-700"
+        className="bg-slate-900/90 rounded-2xl p-4 sm:p-6 max-w-sm w-full space-y-3 sm:space-y-4 border border-slate-700 max-h-[90vh] overflow-y-auto"
       >
         {/* Header */}
         <div className="text-center">
-          <h2 className="text-2xl font-bold font-orbitron text-white">GAME OVER</h2>
+          <h2 className="text-xl sm:text-2xl font-bold font-orbitron text-white">GAME OVER</h2>
           {isNewRecord && (
             <motion.p
               initial={{ scale: 0 }}
@@ -263,9 +268,9 @@ export function ResultOverlay({ onPlayAgain, onMenu }: ResultOverlayProps) {
         </div>
 
         {/* Score */}
-        <div className="text-center bg-black/40 rounded-xl p-4">
-          <p className="text-gray-400 text-sm">DISTANCE</p>
-          <p className="text-4xl font-bold font-orbitron text-cyan-400">
+        <div className="text-center bg-black/40 rounded-xl p-3 sm:p-4">
+          <p className="text-gray-400 text-xs sm:text-sm">DISTANCE</p>
+          <p className="text-3xl sm:text-4xl font-bold font-orbitron text-cyan-400">
             {submissionData.distance}m
           </p>
         </div>
@@ -288,10 +293,10 @@ export function ResultOverlay({ onPlayAgain, onMenu }: ResultOverlayProps) {
 
         {/* Rewards */}
         {rewards && (
-          <div className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 rounded-xl p-4">
-            <p className="text-gray-300 text-sm mb-2">REWARDS EARNED</p>
+          <div className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 rounded-xl p-3 sm:p-4">
+            <p className="text-gray-300 text-xs sm:text-sm mb-2">REWARDS EARNED</p>
             <div className="flex items-center justify-center gap-2">
-              <span className="text-3xl font-bold font-orbitron text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">
+              <span className="text-2xl sm:text-3xl font-bold font-orbitron text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">
                 +{rewards.totalReward}
               </span>
               <span className="text-yellow-400 font-bold">$CLUB</span>

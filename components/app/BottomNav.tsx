@@ -82,8 +82,10 @@ export function BottomNav() {
     },
   ];
 
-  // Hide BottomNav when playing games (dash-trials, etc.)
-  const isGamePage = pathname.startsWith('/play/game/dash-trials');
+  // Hide BottomNav when playing games
+  const isGamePage =
+    pathname.startsWith('/play/game/dash-trials') ||
+    pathname.startsWith('/play/game/cosmic-flap');
 
   const isActive = (href: string) => {
     return pathname.startsWith(href);
@@ -106,7 +108,7 @@ export function BottomNav() {
       <div className="relative">
         {item.icon}
         {/* Badge */}
-        {item.badge && item.badge > 0 && (
+        {item.badge != null && item.badge > 0 && (
           <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-green-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 animate-pulse">
             {item.badge > 9 ? '9+' : item.badge}
           </span>

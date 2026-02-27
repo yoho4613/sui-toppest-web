@@ -13,7 +13,7 @@
 'use client';
 
 import { Suspense, useEffect } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { useGameStore } from './hooks/useGameStore';
 import { useControls } from './hooks/useControls';
 import { useGameAudio } from './hooks/useGameAudio';
@@ -29,6 +29,30 @@ import { useZkLogin } from '@/hooks/useZkLogin';
 import { GAME_TYPE } from './constants';
 
 // ============================================
+// Camera Controller (adapts to portrait/mobile)
+// ============================================
+
+function CameraController() {
+  const { camera, size } = useThree();
+
+  useEffect(() => {
+    const aspect = size.width / size.height;
+
+    if (aspect < 1) {
+      // Portrait: t ranges from 0 (aspect=1) to 1 (aspect≤0.4)
+      const t = Math.min(1, (1 - aspect) / 0.6);
+      camera.position.z = 10 + t * 3;   // 10 → 13 (pull back to show more)
+      camera.position.x = -t * 1;       // shift left to center on gameplay
+    } else {
+      camera.position.z = 10;
+      camera.position.x = 0;
+    }
+  }, [camera, size]);
+
+  return null;
+}
+
+// ============================================
 // Game Scene
 // ============================================
 
@@ -38,6 +62,9 @@ function GameScene() {
 
   return (
     <>
+      {/* Adapt camera for portrait/mobile screens */}
+      <CameraController />
+
       {/* All materials are MeshBasicMaterial - no scene lights needed */}
 
       {/* Background */}
@@ -160,7 +187,7 @@ export function CosmicFlapGame() {
 
       {/* Touch hint for mobile */}
       {status === 'playing' && (
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-gray-500 text-xs animate-pulse pointer-events-none">
+        <div className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 text-gray-500 text-[10px] sm:text-xs animate-pulse pointer-events-none">
           Tap anywhere to flap
         </div>
       )}

@@ -60,34 +60,36 @@ export function isReferralCode(ref: string): boolean {
 }
 
 // ============================================
-// 세션 스토리지 (지갑 연결 전 임시 저장)
+// 쿠키 기반 저장 (1일 유지, 탭 닫아도 보존)
 // ============================================
 
-const REFERRER_STORAGE_KEY = 'pending_referrer';
+const REFERRER_COOKIE_KEY = 'pending_referrer';
+const REFERRER_COOKIE_MAX_AGE = 86400; // 1일 (초 단위)
 
 /**
- * 레퍼럴 정보 임시 저장 (지갑 연결 전)
+ * 레퍼럴 정보를 쿠키에 저장 (1일 유효)
  * @param referrer - referral_code 또는 wallet address
  */
 export function savePendingReferrer(referrer: string): void {
-  if (typeof window === 'undefined') return;
-  sessionStorage.setItem(REFERRER_STORAGE_KEY, referrer);
+  if (typeof document === 'undefined') return;
+  document.cookie = `${REFERRER_COOKIE_KEY}=${encodeURIComponent(referrer)}; max-age=${REFERRER_COOKIE_MAX_AGE}; path=/; SameSite=Lax`;
 }
 
 /**
- * 저장된 레퍼럴 정보 가져오기 (referral_code 또는 wallet address)
+ * 쿠키에서 레퍼럴 정보 가져오기
  */
 export function getPendingReferrer(): string | null {
-  if (typeof window === 'undefined') return null;
-  return sessionStorage.getItem(REFERRER_STORAGE_KEY);
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${REFERRER_COOKIE_KEY}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 /**
- * 레퍼럴 처리 완료 후 삭제
+ * 레퍼럴 처리 완료 후 쿠키 삭제
  */
 export function clearPendingReferrer(): void {
-  if (typeof window === 'undefined') return;
-  sessionStorage.removeItem(REFERRER_STORAGE_KEY);
+  if (typeof document === 'undefined') return;
+  document.cookie = `${REFERRER_COOKIE_KEY}=; max-age=0; path=/; SameSite=Lax`;
 }
 
 // ============================================

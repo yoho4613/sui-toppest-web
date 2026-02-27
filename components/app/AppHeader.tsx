@@ -55,8 +55,10 @@ export function AppHeader() {
   const isConnected = isWalletConnected || isZkLoginAuth;
   const address = walletAddress || zkAddress;
 
-  // Hide header when playing games (dash-trials, etc.)
-  const isGamePage = pathname.startsWith('/play/game/dash-trials');
+  // Hide header when playing games
+  const isGamePage =
+    pathname.startsWith('/play/game/dash-trials') ||
+    pathname.startsWith('/play/game/cosmic-flap');
 
   useEffect(() => {
     async function fetchBalances() {

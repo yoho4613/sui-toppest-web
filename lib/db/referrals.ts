@@ -35,6 +35,7 @@ export interface CreateReferralResult {
   success: boolean;
   reason?: string;
   referralId?: string;
+  referrerWallet?: string;
   clubReward?: number;
   ticketReward?: number;
 }
@@ -82,6 +83,7 @@ export async function createReferral(
       success: result.success,
       reason: result.reason,
       referralId: result.referral_id,
+      referrerWallet: result.referrer_wallet,
       clubReward: result.club_reward,
       ticketReward: result.ticket_reward,
     };

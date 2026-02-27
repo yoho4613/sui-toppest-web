@@ -343,7 +343,7 @@ export async function calculateProgress(
         .select('*', { count: 'exact', head: true })
         .eq('wallet_address', walletAddress)
         .eq('status', 'completed')
-        .gte('completed_at', `${today}T00:00:00Z`);
+        .gte('verified_at', `${today}T00:00:00Z`);
       return count && count > 0 ? 1 : 0;
     }
 
@@ -353,7 +353,7 @@ export async function calculateProgress(
         .select('price_usd')
         .eq('wallet_address', walletAddress)
         .eq('status', 'completed')
-        .gte('completed_at', weekStart.toISOString());
+        .gte('verified_at', weekStart.toISOString());
 
       if (data) {
         return data.reduce((sum, p) => sum + (p.price_usd || 0), 0);

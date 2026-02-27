@@ -95,35 +95,35 @@ export function GameHUD() {
   if (status !== 'playing') return null;
 
   return (
-    <div className="absolute inset-0 pointer-events-none p-4">
+    <div className="absolute inset-0 pointer-events-none p-2 sm:p-4">
       {/* Top bar */}
-      <div className="flex justify-between items-start">
+      <div className="flex justify-between items-start gap-1">
         {/* Obstacles count */}
-        <div className="flex items-center gap-2 bg-black/40 backdrop-blur-sm rounded-lg px-3 py-2">
-          <span className="text-pink-400 text-lg">🎯</span>
-          <span ref={obstaclesRef} className="text-white font-bold text-xl font-orbitron">
+        <div className="flex items-center gap-1 sm:gap-2 bg-black/40 backdrop-blur-sm rounded-lg px-2 py-1.5 sm:px-3 sm:py-2">
+          <span className="text-pink-400 text-sm sm:text-lg">🎯</span>
+          <span ref={obstaclesRef} className="text-white font-bold text-base sm:text-xl font-orbitron">
             0
           </span>
         </div>
 
         {/* Distance (center) */}
-        <div className="bg-black/40 backdrop-blur-sm rounded-lg px-4 py-2">
-          <span ref={distanceRef} className="text-cyan-400 font-bold text-2xl font-orbitron">
+        <div className="bg-black/40 backdrop-blur-sm rounded-lg px-2 py-1.5 sm:px-4 sm:py-2">
+          <span ref={distanceRef} className="text-cyan-400 font-bold text-lg sm:text-2xl font-orbitron">
             0m
           </span>
         </div>
 
         {/* Coins */}
-        <div className="flex items-center gap-2 bg-black/40 backdrop-blur-sm rounded-lg px-3 py-2">
-          <span className="text-yellow-400 text-lg">🪙</span>
-          <span ref={coinsRef} className="text-white font-bold text-xl font-orbitron">
+        <div className="flex items-center gap-1 sm:gap-2 bg-black/40 backdrop-blur-sm rounded-lg px-2 py-1.5 sm:px-3 sm:py-2">
+          <span className="text-yellow-400 text-sm sm:text-lg">🪙</span>
+          <span ref={coinsRef} className="text-white font-bold text-base sm:text-xl font-orbitron">
             0
           </span>
         </div>
       </div>
 
       {/* Bottom effect bars */}
-      <div className="absolute bottom-4 left-4 right-4 space-y-2">
+      <div className="absolute bottom-2 left-2 right-2 sm:bottom-4 sm:left-4 sm:right-4 space-y-2">
         {/* Shield bar */}
         <div className="opacity-0 transition-opacity duration-200">
           <div className="flex items-center gap-2">

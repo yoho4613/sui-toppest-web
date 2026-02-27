@@ -55,7 +55,7 @@ function BackButton() {
 
 export default function CosmicFlapPage() {
   return (
-    <div className="fixed inset-0 bg-slate-900 z-50">
+    <div className="fixed inset-0 bg-slate-900 z-50 overscroll-none">
       {/* Back button - hidden during gameplay */}
       <BackButton />
 

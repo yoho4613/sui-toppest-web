@@ -119,10 +119,10 @@ export default function QuestsPage() {
   const { address: zkAddress } = useZkLogin();
   const address = walletAddress || zkAddress;
 
-  // Load quests on mount
+  // Load quests on mount (sync=true for page navigation)
   useEffect(() => {
     if (address) {
-      fetchQuests(address);
+      fetchQuests(address, { sync: true });
     }
   }, [address, fetchQuests]);
 

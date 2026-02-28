@@ -115,7 +115,7 @@ VALUES
 INSERT INTO quests (title, description, icon, category, condition_type, condition_value, reward_type, reward_amount, sort_order)
 VALUES
   ('Welcome', 'Play your first game', '🌟', 'special', 'first_game', 1, 'club', 50, 1),
-  ('Profile Setup', 'Set up email and nickname', '✨', 'special', 'profile_complete', 1, 'club', 30, 2),
+  ('Profile Setup', 'Set up your nickname', '✨', 'special', 'profile_complete', 1, 'club', 30, 2),
   ('First Purchase', 'Complete your first purchase', '💎', 'special', 'first_purchase', 1, 'club', 50, 3);
 
 -- 6. 퀘스트 진행 상황 업데이트 함수
@@ -225,15 +225,19 @@ BEGIN
   SET claimed = true, claimed_at = NOW(), updated_at = NOW()
   WHERE id = v_user_quest.id;
 
-  -- $CLUB 보상인 경우 user_profiles의 total_club 업데이트
+  -- 보상 타입별 처리
   IF v_quest.reward_type = 'club' THEN
     UPDATE user_profiles
     SET total_club = COALESCE(total_club, 0) + v_quest.reward_amount,
         updated_at = NOW()
     WHERE wallet_address = p_wallet;
+  ELSIF v_quest.reward_type = 'star_ticket' THEN
+    UPDATE user_profiles
+    SET star_tickets = COALESCE(star_tickets, 0) + v_quest.reward_amount,
+        updated_at = NOW()
+    WHERE wallet_address = p_wallet;
   END IF;
-
-  -- TODO: star_ticket, sui 보상은 별도 처리 필요
+  -- sui rewards require on-chain transfer, handled by application layer
 
   RETURN QUERY SELECT true, v_quest.reward_type, v_quest.reward_amount, NULL::TEXT;
 END;

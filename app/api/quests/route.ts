@@ -11,11 +11,12 @@ import { getQuestsForUser, syncQuestProgress } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// GET /api/quests?address=0x...
+// GET /api/quests?address=0x...&sync=true
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const address = searchParams.get('address');
+    const shouldSync = searchParams.get('sync') === 'true';
 
     if (!address) {
       return NextResponse.json(
@@ -24,10 +25,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // First sync quest progress from source data
-    await syncQuestProgress(address);
+    // Only sync quest progress when explicitly requested (page navigation, game end)
+    if (shouldSync) {
+      await syncQuestProgress(address);
+    }
 
-    // Then get quests with updated progress
+    // Get quests with current progress
     const result = await getQuestsForUser(address);
 
     if (!result) {

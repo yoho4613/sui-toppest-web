@@ -331,8 +331,9 @@ export async function calculateProgress(
 
       if (data) {
         const hasNickname = !!data.nickname && data.nickname.length > 0;
-        const hasEmail = !!(data.google_email || data.email);
-        return hasNickname && hasEmail ? 1 : 0;
+        // Nickname is sufficient for profile completion
+        // Email is optional (wallet users may not have one)
+        return hasNickname ? 1 : 0;
       }
       return 0;
     }
@@ -409,6 +410,7 @@ export async function calculateProgress(
 
 /**
  * Sync all quest progress for a user (recalculates from source data)
+ * Preserves existing completed_at timestamps and claimed status
  */
 export async function syncQuestProgress(
   walletAddress: string
@@ -429,11 +431,36 @@ export async function syncQuestProgress(
 
   const periods = getPeriodStarts();
 
+  // Fetch existing user quest records to preserve completed_at and claimed
+  const { data: existingRecords } = await supabaseAdmin
+    .from('user_quests')
+    .select('quest_id, period_start, completed_at, claimed, claimed_at')
+    .eq('wallet_address', walletAddress);
+
+  const existingMap = new Map<string, { completed_at: string | null; claimed: boolean; claimed_at: string | null }>();
+  (existingRecords || []).forEach((r) => {
+    existingMap.set(`${r.quest_id}_${r.period_start}`, {
+      completed_at: r.completed_at,
+      claimed: r.claimed,
+      claimed_at: r.claimed_at,
+    });
+  });
+
+  const now = new Date().toISOString();
+
   for (const quest of quests) {
     const progress = await calculateProgress(walletAddress, quest.condition_type);
     const periodStart = periods[quest.category as keyof typeof periods];
+    const isCompleted = progress >= quest.condition_value;
 
-    // Upsert user_quest with calculated progress
+    const existing = existingMap.get(`${quest.id}_${periodStart}`);
+
+    // Preserve original completed_at if already completed
+    const completedAt = isCompleted
+      ? (existing?.completed_at || now)
+      : null;
+
+    // Upsert user_quest with calculated progress (preserve claimed status)
     await supabaseAdmin
       .from('user_quests')
       .upsert(
@@ -442,9 +469,11 @@ export async function syncQuestProgress(
           quest_id: quest.id,
           period_start: periodStart,
           progress: Math.min(progress, quest.condition_value),
-          completed: progress >= quest.condition_value,
-          completed_at: progress >= quest.condition_value ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString(),
+          completed: isCompleted,
+          completed_at: completedAt,
+          claimed: existing?.claimed || false,
+          claimed_at: existing?.claimed_at || null,
+          updated_at: now,
         },
         {
           onConflict: 'wallet_address,quest_id,period_start',

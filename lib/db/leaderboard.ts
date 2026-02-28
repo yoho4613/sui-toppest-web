@@ -129,8 +129,9 @@ export async function getLeaderboard(
       user_profiles(nickname, avatar_url, google_name, google_picture)
     `)
     .eq('game_type', gameType)
+    .gt(scoreColumn, 0)
     .order(scoreColumn, { ascending: false })
-    .limit(limit * 2); // Fetch extra to filter out zero scores
+    .limit(limit);
 
   if (error) {
     console.error('Leaderboard fetch error:', error);
@@ -154,10 +155,7 @@ export async function getLeaderboard(
     }
   };
 
-  // Filter entries with score > 0 and limit
-  const filteredEntries = (entries || [])
-    .filter((entry: any) => getScore(entry) > 0)
-    .slice(0, limit);
+  const filteredEntries = (entries || []).slice(0, limit);
 
   const leaderboard: LeaderboardEntry[] = filteredEntries.map((entry: any, index: number) => {
     const profile = entry.user_profiles;

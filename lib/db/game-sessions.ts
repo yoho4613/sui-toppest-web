@@ -111,19 +111,25 @@ export async function validateAndConsumeSession(
     return { valid: false, error: 'Session game type mismatch' };
   }
 
-  // Mark session as used (atomic update)
-  const { error: updateError } = await supabaseAdmin
+  // Mark session as used (atomic update with race condition protection)
+  const { data: updatedRows, error: updateError } = await supabaseAdmin
     .from('game_sessions')
     .update({
       used: true,
       used_at: new Date().toISOString(),
     })
     .eq('session_token', token)
-    .eq('used', false); // Ensure we only update if still unused (race condition protection)
+    .eq('used', false) // Only update if still unused
+    .select('session_token');
 
   if (updateError) {
     console.error('Failed to mark session as used:', updateError);
     return { valid: false, error: 'Failed to consume session' };
+  }
+
+  // If no rows were updated, another request already consumed this session
+  if (!updatedRows || updatedRows.length === 0) {
+    return { valid: false, error: 'Session token already used' };
   }
 
   return {

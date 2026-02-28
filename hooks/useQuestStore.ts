@@ -64,7 +64,7 @@ interface QuestStore {
   showClaimSuccess: boolean;
 
   // Actions
-  fetchQuests: (walletAddress: string) => Promise<void>;
+  fetchQuests: (walletAddress: string, options?: { sync?: boolean }) => Promise<void>;
   claimQuest: (walletAddress: string, questId: string) => Promise<ClaimResult>;
   refreshAfterGame: (walletAddress: string) => Promise<void>;
   clearClaimSuccess: () => void;
@@ -91,14 +91,16 @@ export const useQuestStore = create<QuestStore>((set, get) => ({
   showClaimSuccess: false,
 
   // Fetch quests from API
-  fetchQuests: async (walletAddress: string) => {
+  // sync=true triggers full progress recalculation (use on page navigation / game end)
+  fetchQuests: async (walletAddress: string, options?: { sync?: boolean }) => {
     if (!walletAddress) return;
 
     set({ isLoading: true, error: null });
 
     try {
+      const syncParam = options?.sync ? '&sync=true' : '';
       const response = await fetch(
-        `/api/quests?address=${walletAddress}&_t=${Date.now()}`,
+        `/api/quests?address=${walletAddress}${syncParam}&_t=${Date.now()}`,
         { cache: 'no-store' }
       );
 
@@ -169,14 +171,14 @@ export const useQuestStore = create<QuestStore>((set, get) => ({
     }
   },
 
-  // Refresh quests after game completion
+  // Refresh quests after game completion (triggers full sync)
   refreshAfterGame: async (walletAddress: string) => {
     if (!walletAddress) return;
 
     // Small delay to allow server to process quest updates
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    await get().fetchQuests(walletAddress);
+    await get().fetchQuests(walletAddress, { sync: true });
   },
 
   // Clear claim success popup

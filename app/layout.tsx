@@ -35,6 +35,7 @@ export const metadata: Metadata = {
     statusBarStyle: 'black-translucent',
     title: 'Toppest',
   },
+  manifest: '/manifest.webmanifest',
   formatDetection: {
     telephone: false,
   },

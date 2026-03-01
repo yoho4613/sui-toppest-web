@@ -10,7 +10,7 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: 'portrait',
     background_color: '#0f172a',
     theme_color: '#3b82f6',
-    scope: '/play',
+    scope: '/',
     lang: 'en',
     dir: 'ltr',
     categories: ['games', 'entertainment', 'finance'],

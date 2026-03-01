@@ -5,8 +5,8 @@ import { useGameAPI } from '@/hooks/useGameAPI';
 import { useSuiWallet } from '@/hooks/useSuiWallet';
 import { useZkLogin } from '@/hooks/useZkLogin';
 
-type TimeFilter = 'daily' | 'weekly' | 'alltime';
-type GameType = 'dash-trials'; // Add more games as they're added
+type TimeFilter = 'weekly' | 'alltime';
+type GameType = 'dash-trials' | 'cosmic-flap';
 
 interface LeaderboardEntry {
   rank: number;
@@ -20,7 +20,7 @@ interface LeaderboardEntry {
 
 const GAMES: { id: GameType; name: string; emoji: string }[] = [
   { id: 'dash-trials', name: 'Dash Trials', emoji: '🏃' },
-  // Add more games here as they're added
+  { id: 'cosmic-flap', name: 'Cosmic Flap', emoji: '🚀' },
 ];
 
 export default function RankingPage() {
@@ -105,7 +105,7 @@ export default function RankingPage() {
 
       {/* Time Filter Tabs */}
       <div className="flex bg-[#1A1F26] rounded-full p-1 border border-white/10">
-        {(['daily', 'weekly', 'alltime'] as TimeFilter[]).map((filter) => (
+        {(['weekly', 'alltime'] as TimeFilter[]).map((filter) => (
           <button
             key={filter}
             onClick={() => setTimeFilter(filter)}
@@ -115,7 +115,7 @@ export default function RankingPage() {
                 : 'text-gray-400 hover:text-white'
             }`}
           >
-            {filter === 'alltime' ? 'All Time' : filter.charAt(0).toUpperCase() + filter.slice(1)}
+            {filter === 'alltime' ? 'All Time' : 'Weekly'}
           </button>
         ))}
       </div>

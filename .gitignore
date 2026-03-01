@@ -40,3 +40,7 @@ next-env.d.ts
 
 # Testing
 coverage/
+
+# Serwist generated files
+public/sw.js
+public/sw.js.map

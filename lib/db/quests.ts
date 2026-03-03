@@ -432,10 +432,16 @@ export async function syncQuestProgress(
   const periods = getPeriodStarts();
 
   // Fetch existing user quest records to preserve completed_at and claimed
-  const { data: existingRecords } = await supabaseAdmin
+  const { data: existingRecords, error: existingError } = await supabaseAdmin
     .from('user_quests')
     .select('quest_id, period_start, completed_at, claimed, claimed_at')
     .eq('wallet_address', walletAddress);
+
+  // If fetch fails, abort sync to prevent accidentally resetting claimed statuses
+  if (existingError) {
+    console.error('syncQuestProgress: failed to fetch existing records, aborting to preserve claimed status:', existingError);
+    return false;
+  }
 
   const existingMap = new Map<string, { completed_at: string | null; claimed: boolean; claimed_at: string | null }>();
   (existingRecords || []).forEach((r) => {
@@ -454,6 +460,12 @@ export async function syncQuestProgress(
     const isCompleted = progress >= quest.condition_value;
 
     const existing = existingMap.get(`${quest.id}_${periodStart}`);
+
+    // Skip already-claimed quests - preserves claimed state and avoids accidental resets
+    // Special (one-time) quests once claimed should never be re-evaluated
+    if (existing?.claimed) {
+      continue;
+    }
 
     // Preserve original completed_at if already completed
     const completedAt = isCompleted

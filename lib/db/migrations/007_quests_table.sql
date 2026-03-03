@@ -146,6 +146,17 @@ BEGIN
       v_period_start := '1970-01-01'::DATE; -- 일회성은 고정값
     END IF;
 
+    -- 이미 클레임된 퀘스트는 업데이트 건너뜀 (특히 special/일회성 퀘스트 보호)
+    IF EXISTS (
+      SELECT 1 FROM user_quests
+      WHERE wallet_address = p_wallet
+        AND quest_id = v_quest.id
+        AND period_start = v_period_start
+        AND claimed = true
+    ) THEN
+      CONTINUE;
+    END IF;
+
     -- user_quests에 레코드 생성 또는 업데이트
     INSERT INTO user_quests (wallet_address, quest_id, progress, period_start)
     VALUES (p_wallet, v_quest.id, p_increment, v_period_start)

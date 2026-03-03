@@ -334,12 +334,15 @@ export function validateGameSubmission(
   }
 
   // 5. Fever vs Coin consistency validation (Phase 1)
-  // Fever requires 10 consecutive coins to activate
-  if (!validateFeverCount(fever_count, coin_count)) {
-    const maxPossibleFever = Math.floor(coin_count / 10);
-    errors.push(
-      `Impossible fever count: ${fever_count} fevers with only ${coin_count} coins (max possible: ${maxPossibleFever})`
-    );
+  // Only applies to dash-trials (Fever requires 10 consecutive coins)
+  // cosmic-flap uses fever_count = tunnels_passed which is unrelated to coins
+  if (submission.game_type === 'dash-trials') {
+    if (!validateFeverCount(fever_count, coin_count)) {
+      const maxPossibleFever = Math.floor(coin_count / 10);
+      errors.push(
+        `Impossible fever count: ${fever_count} fevers with only ${coin_count} coins (max possible: ${maxPossibleFever})`
+      );
+    }
   }
 
   // 6. Negative value check

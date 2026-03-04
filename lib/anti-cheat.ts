@@ -43,8 +43,9 @@ export const GAME_LIMITS = {
 
   'cosmic-flap': {
     // Maximum speed in m/s (based on flappy game physics)
-    // Initial speed 4 + max progression = ~8 m/s
-    MAX_SPEED_MS: 10,
+    // Max game speed = MAX_SPEED(6.5) * DISTANCE_MULTIPLIER(2.5) = 16.25 m/s
+    // Set to 20 to allow for full max-speed runs with some buffer
+    MAX_SPEED_MS: 20,
 
     // Minimum time for any valid game (milliseconds)
     // Flappy games tend to be shorter - minimum 5 seconds
